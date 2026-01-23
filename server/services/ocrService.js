@@ -1,16 +1,11 @@
 const { getGeminiVisionModel } = require('../config/gemini');
 const fs = require('fs').promises;
 const path = require('path');
-let pdfPoppler = null;
+const pdf = require('pdf-poppler');
 
-// Optional dependency for PDF -> image conversion
-try {
-  // eslint-disable-next-line global-require
-  pdfPoppler = require('pdf-poppler');
-} catch (_) {
-  pdfPoppler = null;
-}
-
+/**
+ * Extract biomarkers from an image file (JPEG/PNG).
+ */
 const extractBiomarkersFromImage = async (imagePath, mimeType) => {
   try {
     const model = getGeminiVisionModel();
@@ -82,64 +77,59 @@ Be precise with the test names and values.`;
   }
 };
 
-async function convertPdfToPngImages(pdfPath) {
-  if (!pdfPoppler) {
-    throw new Error('pdf-poppler is not installed');
+/**
+ * Convert a PDF into one or more images (JPEG/PNG) before sending to the model.
+ */
+const convertPdfToImages = async (pdfPath) => {
+  try {
+    const fileName = path.basename(pdfPath, '.pdf');
+    const outputDir = path.join(path.dirname(pdfPath), `${fileName}_pages`);
+    
+    // Create output directory if it doesn't exist
+    await fs.mkdir(outputDir, { recursive: true });
+    
+    const options = {
+      format: 'png',
+      out_dir: outputDir,
+      out_prefix: 'page',
+      page: null // Convert all pages
+    };
+    
+    await pdf.convert(pdfPath, options);
+    
+    // Get list of generated image files
+    const files = await fs.readdir(outputDir);
+    const imageFiles = files
+      .filter(file => file.endsWith('.png'))
+      .sort()
+      .map(file => path.join(outputDir, file));
+    
+    if (imageFiles.length === 0) {
+      throw new Error('No images generated from PDF');
+    }
+    
+    return imageFiles;
+  } catch (error) {
+    console.error('PDF conversion error:', error);
+    throw new Error('PDF conversion failed. Please convert PDF to images first.');
   }
-
-  const outDir = path.join(path.dirname(pdfPath), `${path.basename(pdfPath)}_pages`);
-  await fs.mkdir(outDir, { recursive: true });
-
-  const outPrefix = 'page';
-  const options = {
-    format: 'png',
-    out_dir: outDir,
-    out_prefix: outPrefix,
-    // scale impacts resolution; 1024 is pdf-poppler default, but keep explicit
-    scale: 1024,
-  };
-
-  await pdfPoppler.convert(pdfPath, options);
-
-  // pdf-poppler outputs files like: page-1.png, page-2.png, ...
-  const files = await fs.readdir(outDir);
-  const pageFiles = files
-    .filter((f) => /^page-\d+\.png$/i.test(f))
-    .sort((a, b) => {
-      const na = Number(a.match(/-(\d+)\.png$/i)?.[1] || 0);
-      const nb = Number(b.match(/-(\d+)\.png$/i)?.[1] || 0);
-      return na - nb;
-    })
-    .map((f) => path.join(outDir, f));
-
-  if (pageFiles.length === 0) {
-    throw new Error('No PNG pages were generated from the PDF');
-  }
-
-  return pageFiles;
-}
+};
 
 const extractBiomarkersFromPDF = async (pdfPath) => {
-  // Convert PDF pages to PNG images before sending to the model.
   try {
-    const pageImages = await convertPdfToPngImages(pdfPath);
+    // Convert PDF to images
+    const imagePaths = await convertPdfToImages(pdfPath);
 
-    const allResults = [];
-    for (const imagePath of pageImages) {
-      // Process each page image with Gemini Vision
-      // eslint-disable-next-line no-await-in-loop
-      const pageResults = await extractBiomarkersFromImage(imagePath, 'image/png');
-      if (Array.isArray(pageResults)) {
-        allResults.push(...pageResults);
-      }
+    if (!Array.isArray(imagePaths) || imagePaths.length === 0) {
+      throw new Error('PDF conversion returned no images.');
     }
 
-    return allResults;
+    // Process first page for biomarker extraction
+    const firstImagePath = imagePaths[0];
+    return await extractBiomarkersFromImage(firstImagePath, 'image/png');
   } catch (error) {
-    console.error('PDF conversion failed. Please convert PDF to images first.', error.message);
-    throw new Error(
-      'PDF conversion failed. Please convert PDF to images first. Error: ' + error.message
-    );
+    console.error('PDF processing error:', error);
+    throw error;
   }
 };
 
