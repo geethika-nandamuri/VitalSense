@@ -1,16 +1,16 @@
 const express = require('express');
 const Biomarker = require('../models/Biomarker');
-const { authenticate } = require('../middleware/auth');
+const { authenticate, optionalAuth } = require('../middleware/auth');
 const { retrieveBiomarkerInfo } = require('../services/ragService');
 
 const router = express.Router();
 
 // Get all biomarkers for user (time-series)
-router.get('/', authenticate, async (req, res) => {
+router.get('/', optionalAuth, async (req, res) => {
   try {
     const { testName } = req.query;
     
-    const query = { userId: req.userId };
+    const query = { userId: req.userId || null };
     if (testName) {
       query.testName = new RegExp(testName, 'i');
     }
@@ -26,9 +26,9 @@ router.get('/', authenticate, async (req, res) => {
 });
 
 // Get biomarkers grouped by test name
-router.get('/grouped', authenticate, async (req, res) => {
+router.get('/grouped', optionalAuth, async (req, res) => {
   try {
-    const biomarkers = await Biomarker.find({ userId: req.userId })
+    const biomarkers = await Biomarker.find({ userId: req.userId || null })
       .sort({ date: 1 });
     
     // Group by test name
@@ -56,7 +56,7 @@ router.get('/grouped', authenticate, async (req, res) => {
 });
 
 // Get explanation for a biomarker
-router.get('/:testName/explanation', authenticate, async (req, res) => {
+router.get('/:testName/explanation', optionalAuth, async (req, res) => {
   try {
     const { testName } = req.params;
     const explanation = await retrieveBiomarkerInfo(testName);
@@ -67,10 +67,10 @@ router.get('/:testName/explanation', authenticate, async (req, res) => {
 });
 
 // Get latest values for all tests
-router.get('/latest', authenticate, async (req, res) => {
+router.get('/latest', optionalAuth, async (req, res) => {
   try {
     const biomarkers = await Biomarker.aggregate([
-      { $match: { userId: req.userId } },
+      { $match: { userId: req.userId || null } },
       { $sort: { date: -1 } },
       {
         $group: {
