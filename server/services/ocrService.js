@@ -62,12 +62,31 @@ Be precise with the test names and values.`;
     
     if (jsonMatch) {
       const extractedData = JSON.parse(jsonMatch[0]);
-      return extractedData;
+      
+      // Ensure all extracted data has required fields
+      const cleanedData = Array.isArray(extractedData) ? extractedData : [extractedData];
+      const validData = cleanedData.map(item => ({
+        testName: item.testName || 'Unknown Test',
+        value: parseFloat(item.value) || 0,
+        unit: item.unit || 'N/A',
+        referenceRange: item.referenceRange || null
+      })).filter(item => item.testName !== 'Unknown Test' && item.value !== 0);
+      
+      return validData;
     }
     
     // Fallback: try to parse the entire response as JSON
     try {
-      return JSON.parse(text);
+      const parsedData = JSON.parse(text);
+      const cleanedData = Array.isArray(parsedData) ? parsedData : [parsedData];
+      const validData = cleanedData.map(item => ({
+        testName: item.testName || 'Unknown Test',
+        value: parseFloat(item.value) || 0,
+        unit: item.unit || 'N/A',
+        referenceRange: item.referenceRange || null
+      })).filter(item => item.testName !== 'Unknown Test' && item.value !== 0);
+      
+      return validData;
     } catch (e) {
       throw new Error('Failed to parse OCR response as JSON');
     }

@@ -1,16 +1,16 @@
 const express = require('express');
 const Biomarker = require('../models/Biomarker');
-const { authenticate } = require('../middleware/auth');
+const { authenticate, optionalAuth } = require('../middleware/auth');
 
 const router = express.Router();
 
 // Get trend analysis for a specific biomarker
-router.get('/:testName', authenticate, async (req, res) => {
+router.get('/:testName', optionalAuth, async (req, res) => {
   try {
     const { testName } = req.params;
     
     const biomarkers = await Biomarker.find({
-      userId: req.userId,
+      userId: req.userId || null,
       testName: new RegExp(testName, 'i')
     }).sort({ date: 1 });
     
@@ -80,9 +80,9 @@ router.get('/:testName', authenticate, async (req, res) => {
 });
 
 // Get trends for all biomarkers
-router.get('/', authenticate, async (req, res) => {
+router.get('/', optionalAuth, async (req, res) => {
   try {
-    const biomarkers = await Biomarker.find({ userId: req.userId })
+    const biomarkers = await Biomarker.find({ userId: req.userId || null })
       .sort({ date: 1 });
     
     // Group by test name

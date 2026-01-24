@@ -28,6 +28,11 @@ const normalizeValue = (value, fromUnit, toUnit = 'SI') => {
 };
 
 const getNormalizedUnit = (testName, unit) => {
+  // Handle null/undefined units
+  if (!unit) {
+    unit = 'N/A';
+  }
+  
   // Return standard unit for common tests
   const standardUnits = {
     'glucose': 'mg/dL',

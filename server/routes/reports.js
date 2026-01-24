@@ -7,6 +7,7 @@ const Biomarker = require('../models/Biomarker');
 const { extractBiomarkersFromImage, extractBiomarkersFromPDF } = require('../services/ocrService');
 const { getReferenceRange, checkStatus } = require('../utils/referenceRanges');
 const { normalizeValue, getNormalizedUnit } = require('../utils/normalizeUnits');
+const { optionalAuth } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -44,7 +45,7 @@ const upload = multer({
 });
 
 // Upload and process report
-router.post('/upload', upload.single('report'), async (req, res) => {
+router.post('/upload', optionalAuth, upload.single('report'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
@@ -55,9 +56,9 @@ router.post('/upload', upload.single('report'), async (req, res) => {
     const fileType = req.file.mimetype.includes('pdf') ? 'pdf' : 'image';
     const mimeType = req.file.mimetype;
     
-    // Create report record (userId is optional, null when no auth)
+    // Create report record (userId from auth or null)
     const report = new Report({
-      userId: null,
+      userId: req.userId || null,
       fileName,
       filePath,
       fileType,
@@ -88,6 +89,9 @@ router.post('/upload', upload.single('report'), async (req, res) => {
         
         if (!testName || value === undefined) continue;
         
+        // Ensure unit is not null or undefined
+        const biomarkerUnit = unit || 'N/A';
+        
         // Get reference range (from item or lookup)
         const refRange = itemRange || getReferenceRange(testName);
         
@@ -95,19 +99,19 @@ router.post('/upload', upload.single('report'), async (req, res) => {
         const status = checkStatus(value, refRange);
         
         // Normalize units
-        const normalizedUnit = getNormalizedUnit(testName, unit);
-        const normalizedValue = normalizeValue(value, unit, normalizedUnit);
+        const normalizedUnit = getNormalizedUnit(testName, biomarkerUnit);
+        const normalizedValue = normalizeValue(value, biomarkerUnit, normalizedUnit);
         
         const biomarker = new Biomarker({
-          userId: null,
+          userId: req.userId || null,
           reportId: report._id,
           testName,
           value,
-          unit,
+          unit: biomarkerUnit,
           referenceRange: refRange ? {
             min: refRange.min,
             max: refRange.max,
-            unit: refRange.unit || unit
+            unit: refRange.unit || biomarkerUnit
           } : null,
           status,
           date: reportDate,
@@ -162,9 +166,9 @@ router.post('/upload', upload.single('report'), async (req, res) => {
 });
 
 // Get all reports
-router.get('/', async (req, res) => {
+router.get('/', optionalAuth, async (req, res) => {
   try {
-    const reports = await Report.find({ userId: null })
+    const reports = await Report.find({ userId: req.userId || null })
       .sort({ createdAt: -1 })
       .select('-filePath');
     
@@ -175,11 +179,11 @@ router.get('/', async (req, res) => {
 });
 
 // Get single report with biomarkers
-router.get('/:id', async (req, res) => {
+router.get('/:id', optionalAuth, async (req, res) => {
   try {
     const report = await Report.findOne({
       _id: req.params.id,
-      userId: null
+      userId: req.userId || null
     });
     
     if (!report) {
