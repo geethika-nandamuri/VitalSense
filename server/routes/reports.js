@@ -204,4 +204,38 @@ router.get('/:id', optionalAuth, async (req, res) => {
   }
 });
 
+// Delete report
+router.delete('/:id', optionalAuth, async (req, res) => {
+  try {
+    const report = await Report.findOne({
+      _id: req.params.id,
+      userId: req.userId || null
+    });
+    
+    if (!report) {
+      return res.status(404).json({ error: 'Report not found' });
+    }
+    
+    // Delete associated biomarkers
+    await Biomarker.deleteMany({ reportId: report._id });
+    
+    // Delete the report
+    await Report.findByIdAndDelete(report._id);
+    
+    // Clean up uploaded file
+    try {
+      if (report.filePath) {
+        await fs.unlink(report.filePath);
+      }
+    } catch (unlinkError) {
+      console.error('Error deleting file:', unlinkError);
+    }
+    
+    res.json({ message: 'Report deleted successfully' });
+  } catch (error) {
+    console.error('Report delete error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 module.exports = router;

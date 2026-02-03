@@ -25,6 +25,7 @@ import {
   Menu as MenuIcon,
   Dashboard,
   Upload,
+  Description,
   Biotech,
   TrendingUp,
   Recommend,
@@ -62,6 +63,7 @@ const Navbar = () => {
   const navigationItems = [
     { text: 'Dashboard', path: '/dashboard', icon: <Dashboard /> },
     { text: 'Upload Report', path: '/upload', icon: <Upload /> },
+    { text: 'Reports', path: '/reports', icon: <Description /> },
     { text: 'Biomarkers', path: '/biomarkers', icon: <Biotech /> },
     { text: 'Trends', path: '/trends', icon: <TrendingUp /> },
     { text: 'Recommendations', path: '/recommendations', icon: <Recommend /> },
@@ -71,7 +73,14 @@ const Navbar = () => {
   const drawer = (
     <Box sx={{ width: 250 }}>
       <Box sx={{ p: 2, textAlign: 'center' }}>
-        <Typography variant="h6" sx={{ fontWeight: 700, color: '#667eea' }}>
+        <Typography variant="h6" sx={{ 
+          fontWeight: 700, 
+          color: '#1e293b',
+          background: 'linear-gradient(135deg, #0ea5e9 0%, #14b8a6 100%)',
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent',
+          backgroundClip: 'text'
+        }}>
           VitalSense
         </Typography>
       </Box>
@@ -85,15 +94,24 @@ const Navbar = () => {
             to={item.path}
             onClick={() => setMobileOpen(false)}
             sx={{
+              color: '#475569',
               '&:hover': {
-                backgroundColor: 'rgba(102, 126, 234, 0.08)',
+                backgroundColor: 'rgba(14, 165, 233, 0.08)',
+                color: '#0ea5e9'
               },
             }}
           >
-            <ListItemIcon sx={{ color: '#667eea' }}>
+            <ListItemIcon sx={{ color: '#0ea5e9' }}>
               {item.icon}
             </ListItemIcon>
-            <ListItemText primary={item.text} />
+            <ListItemText 
+              primary={item.text} 
+              sx={{
+                '& .MuiListItemText-primary': {
+                  fontWeight: 600
+                }
+              }}
+            />
           </ListItem>
         ))}
       </List>
@@ -106,8 +124,10 @@ const Navbar = () => {
         position="static"
         elevation={0}
         sx={{
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-          borderBottom: '1px solid rgba(255,255,255,0.1)',
+          background: 'rgba(255, 255, 255, 0.95)',
+          backdropFilter: 'blur(20px)',
+          borderBottom: '1px solid rgba(0, 0, 0, 0.08)',
+          boxShadow: '0 2px 12px rgba(0, 0, 0, 0.08)'
         }}
       >
         <Container>
@@ -130,9 +150,20 @@ const Navbar = () => {
               sx={{
                 flexGrow: 1,
                 textDecoration: 'none',
-                color: 'inherit',
-                fontWeight: 700,
-                fontSize: '1.5rem',
+                color: '#1e293b',
+                fontWeight: 800,
+                fontSize: '1.75rem',
+                background: 'linear-gradient(135deg, #0ea5e9 0%, #14b8a6 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+                letterSpacing: '-0.02em',
+                '&:hover': {
+                  background: 'linear-gradient(135deg, #0284c7 0%, #0d9488 100%)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text'
+                }
               }}
             >
               VitalSense
@@ -143,16 +174,38 @@ const Navbar = () => {
                 {navigationItems.map((item) => (
                   <Button
                     key={item.text}
-                    color="inherit"
                     component={Link}
                     to={item.path}
                     sx={{
+                      color: '#475569',
                       textTransform: 'none',
-                      borderRadius: '8px',
+                      borderRadius: 'var(--radius-lg)',
                       px: 2,
+                      py: 1,
+                      fontWeight: 600,
+                      fontSize: '0.95rem',
+                      transition: 'all 0.2s ease',
+                      position: 'relative',
                       '&:hover': {
-                        backgroundColor: 'rgba(255,255,255,0.1)',
+                        color: '#0ea5e9',
+                        backgroundColor: 'rgba(14, 165, 233, 0.08)',
+                        transform: 'translateY(-1px)'
                       },
+                      '&.active': {
+                        color: '#0ea5e9',
+                        fontWeight: 700,
+                        '&::after': {
+                          content: '""',
+                          position: 'absolute',
+                          bottom: 0,
+                          left: '50%',
+                          transform: 'translateX(-50%)',
+                          width: '60%',
+                          height: '2px',
+                          background: '#0ea5e9',
+                          borderRadius: '1px'
+                        }
+                      }
                     }}
                   >
                     {item.text}
@@ -169,10 +222,18 @@ const Navbar = () => {
                 >
                   <Avatar
                     sx={{
-                      bgcolor: 'rgba(255,255,255,0.2)',
+                      bgcolor: 'linear-gradient(135deg, #0ea5e9 0%, #14b8a6 100%)',
                       color: 'white',
-                      width: 40,
-                      height: 40,
+                      width: 44,
+                      height: 44,
+                      fontWeight: 700,
+                      fontSize: '1.1rem',
+                      boxShadow: '0 4px 12px rgba(14, 165, 233, 0.3)',
+                      transition: 'all 0.2s ease',
+                      '&:hover': {
+                        transform: 'scale(1.05)',
+                        boxShadow: '0 6px 16px rgba(14, 165, 233, 0.4)'
+                      }
                     }}
                   >
                     {user?.name?.charAt(0)?.toUpperCase() || 'U'}
@@ -181,34 +242,46 @@ const Navbar = () => {
               ) : (
                 <>
                   <Button
-                    color="inherit"
                     component={Link}
                     to="/login"
                     sx={{
+                      color: '#475569',
                       textTransform: 'none',
-                      borderRadius: '8px',
-                      px: 2,
+                      borderRadius: 'var(--radius-lg)',
+                      px: 3,
+                      py: 1,
+                      fontWeight: 600,
+                      fontSize: '0.95rem',
+                      transition: 'all 0.2s ease',
                       '&:hover': {
-                        backgroundColor: 'rgba(255,255,255,0.1)',
-                      },
+                        color: '#0ea5e9',
+                        backgroundColor: 'rgba(14, 165, 233, 0.08)',
+                        transform: 'translateY(-1px)'
+                      }
                     }}
                   >
                     Login
                   </Button>
                   <Button
-                    color="inherit"
                     component={Link}
                     to="/signup"
                     variant="outlined"
                     sx={{
+                      color: '#0ea5e9',
                       textTransform: 'none',
-                      borderRadius: '8px',
-                      px: 2,
-                      borderColor: 'rgba(255,255,255,0.3)',
+                      borderRadius: 'var(--radius-lg)',
+                      px: 3,
+                      py: 1,
+                      fontWeight: 600,
+                      fontSize: '0.95rem',
+                      borderColor: '#0ea5e9',
+                      transition: 'all 0.2s ease',
                       '&:hover': {
-                        backgroundColor: 'rgba(255,255,255,0.1)',
-                        borderColor: 'rgba(255,255,255,0.5)',
-                      },
+                        backgroundColor: '#0ea5e9',
+                        color: 'white',
+                        transform: 'translateY(-1px)',
+                        boxShadow: '0 4px 12px rgba(14, 165, 233, 0.3)'
+                      }
                     }}
                   >
                     Sign Up
@@ -258,6 +331,8 @@ const Navbar = () => {
           '& .MuiDrawer-paper': {
             boxSizing: 'border-box',
             width: 250,
+            background: 'rgba(255, 255, 255, 0.98)',
+            backdropFilter: 'blur(20px)'
           },
         }}
       >
