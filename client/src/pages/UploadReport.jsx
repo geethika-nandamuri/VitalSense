@@ -2,7 +2,6 @@ import React, { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import {
   Container,
-  Paper,
   Typography,
   Box,
   Button,
@@ -11,8 +10,19 @@ import {
   List,
   ListItem,
   ListItemText,
-  Chip
+  Chip,
+  Fade,
+  Grow,
+  LinearProgress
 } from '@mui/material';
+import {
+  CloudUpload,
+  Description,
+  CheckCircle,
+  Error,
+  Analytics,
+  Biotech
+} from '@mui/icons-material';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
@@ -21,6 +31,7 @@ const UploadReport = () => {
   const [uploading, setUploading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
+  const [uploadProgress, setUploadProgress] = useState(0);
   const navigate = useNavigate();
 
   const onDrop = useCallback((acceptedFiles) => {
@@ -28,16 +39,18 @@ const UploadReport = () => {
       setFile(acceptedFiles[0]);
       setError('');
       setResult(null);
+      setUploadProgress(0);
     }
   }, []);
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+  const { getRootProps, getInputProps, isDragActive, isDragReject } = useDropzone({
     onDrop,
     accept: {
       'image/*': ['.jpeg', '.jpg', '.png'],
       'application/pdf': ['.pdf']
     },
-    maxFiles: 1
+    maxFiles: 1,
+    maxSize: 10 * 1024 * 1024 // 10MB
   });
 
   const handleUpload = async () => {
@@ -46,21 +59,39 @@ const UploadReport = () => {
     setUploading(true);
     setError('');
     setResult(null);
+    setUploadProgress(0);
 
     const formData = new FormData();
     formData.append('report', file);
 
     try {
+      // Simulate upload progress
+      const progressInterval = setInterval(() => {
+        setUploadProgress(prev => {
+          if (prev >= 90) {
+            clearInterval(progressInterval);
+            return 90;
+          }
+          return prev + Math.random() * 15;
+        });
+      }, 200);
+
       const response = await axios.post('/api/reports/upload', formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
         }
       });
 
-      setResult(response.data);
-      setFile(null);
+      clearInterval(progressInterval);
+      setUploadProgress(100);
+      
+      setTimeout(() => {
+        setResult(response.data);
+        setFile(null);
+      }, 500);
     } catch (err) {
       setError(err.response?.data?.error || 'Upload failed');
+      setUploadProgress(0);
     } finally {
       setUploading(false);
     }
@@ -76,114 +107,412 @@ const UploadReport = () => {
     }
   };
 
+  const getDropzoneStyles = () => {
+    if (isDragReject) {
+      return {
+        borderColor: 'var(--error)',
+        background: 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)'
+      };
+    }
+    if (isDragActive) {
+      return {
+        borderColor: 'var(--primary-500)',
+        background: 'linear-gradient(135deg, var(--primary-50) 0%, var(--primary-100) 100%)',
+        transform: 'scale(1.02)'
+      };
+    }
+    return {
+      borderColor: 'var(--gray-300)',
+      background: 'rgba(255, 255, 255, 0.8)'
+    };
+  };
+
   return (
-    <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
-      <Typography variant="h4" gutterBottom>
-        Upload Lab Report
-      </Typography>
-
-      <Paper sx={{ p: 4, mt: 2 }}>
-        <Box
-          {...getRootProps()}
-          sx={{
-            border: '2px dashed',
-            borderColor: isDragActive ? 'primary.main' : 'grey.300',
-            borderRadius: 2,
-            p: 4,
-            textAlign: 'center',
-            cursor: 'pointer',
-            bgcolor: isDragActive ? 'action.hover' : 'background.paper',
-            mb: 2
-          }}
-        >
-          <input {...getInputProps()} />
-          <Typography variant="h6" gutterBottom>
-            {isDragActive ? 'Drop the file here' : 'Drag & drop a lab report here'}
-          </Typography>
-          <Typography variant="body2" color="textSecondary">
-            or click to select a file
-          </Typography>
-          <Typography variant="caption" display="block" sx={{ mt: 1 }}>
-            Supports: JPEG, PNG, PDF (Max 10MB)
-          </Typography>
-        </Box>
-
-        {file && (
-          <Box sx={{ mb: 2 }}>
-            <Typography variant="body1">
-              Selected: {file.name}
-            </Typography>
-            <Button
-              variant="contained"
-              onClick={handleUpload}
-              disabled={uploading}
-              sx={{ mt: 2 }}
+    <div style={{
+      minHeight: '100vh',
+      background: 'linear-gradient(135deg, var(--gray-50) 0%, var(--primary-50) 50%, var(--secondary-50) 100%)',
+      paddingTop: '2rem',
+      paddingBottom: '2rem'
+    }}>
+      <Container maxWidth="md">
+        <Fade in={true} timeout={800}>
+          <Box sx={{ textAlign: 'center', mb: 4 }}>
+            <Typography
+              variant="h3"
+              sx={{
+                fontWeight: 800,
+                mb: 2,
+                background: 'var(--gradient-health)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+                fontSize: { xs: '2rem', sm: '2.5rem', md: '3rem' }
+              }}
             >
-              {uploading ? (
-                <>
-                  <CircularProgress size={20} sx={{ mr: 1 }} />
-                  Processing...
-                </>
-              ) : (
-                'Upload & Analyze'
-              )}
-            </Button>
-          </Box>
-        )}
-
-        {error && (
-          <Alert severity="error" sx={{ mt: 2 }}>
-            {error}
-          </Alert>
-        )}
-
-        {result && (
-          <Box sx={{ mt: 3 }}>
-            <Alert severity="success" sx={{ mb: 2 }}>
-              Report processed successfully! Found {result.biomarkers?.length || 0} biomarkers.
-            </Alert>
-
-            <Typography variant="h6" gutterBottom>
-              Extracted Biomarkers:
+              Upload Lab Report
             </Typography>
-            <List>
-              {result.biomarkers?.map((biomarker) => (
-                <ListItem key={biomarker.id} sx={{ border: '1px solid #e0e0e0', mb: 1, borderRadius: 1 }}>
-                  <ListItemText
-                    primary={biomarker.testName}
-                    secondary={
-                      <Box>
-                        <Typography variant="body2">
-                          Value: {biomarker.value} {biomarker.unit}
-                        </Typography>
-                        {biomarker.referenceRange && (
-                          <Typography variant="caption" color="textSecondary">
-                            Range: {biomarker.referenceRange.min} - {biomarker.referenceRange.max} {biomarker.referenceRange.unit}
-                          </Typography>
-                        )}
-                      </Box>
+            <Typography 
+              variant="h6" 
+              sx={{ 
+                color: 'var(--gray-600)', 
+                fontWeight: 400,
+                maxWidth: '500px',
+                mx: 'auto'
+              }}
+            >
+              Transform your lab results into actionable health insights
+            </Typography>
+          </Box>
+        </Fade>
+
+        <Grow in={true} timeout={1000}>
+          <div className="premium-card" style={{ padding: '3rem', marginBottom: '2rem' }}>
+            {/* Premium Dropzone */}
+            <Box
+              {...getRootProps()}
+              sx={{
+                border: '3px dashed',
+                borderRadius: 'var(--radius-2xl)',
+                p: 6,
+                textAlign: 'center',
+                cursor: 'pointer',
+                transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                position: 'relative',
+                overflow: 'hidden',
+                backdropFilter: 'blur(10px)',
+                mb: 3,
+                ...getDropzoneStyles()
+              }}
+            >
+              <input {...getInputProps()} />
+              
+              {/* Animated Background */}
+              <div style={{
+                position: 'absolute',
+                top: '-50%',
+                left: '-50%',
+                width: '200%',
+                height: '200%',
+                background: isDragActive 
+                  ? 'radial-gradient(circle, var(--primary-200)20 0%, transparent 70%)'
+                  : 'radial-gradient(circle, var(--gray-200)10 0%, transparent 70%)',
+                animation: isDragActive ? 'pulse 2s ease-in-out infinite' : 'none',
+                zIndex: 0
+              }} />
+              
+              <Box sx={{ position: 'relative', zIndex: 1 }}>
+                <CloudUpload 
+                  sx={{ 
+                    fontSize: { xs: 60, sm: 80 }, 
+                    color: isDragActive ? 'var(--primary-500)' : 'var(--gray-400)',
+                    mb: 2,
+                    transition: 'all 0.3s ease',
+                    transform: isDragActive ? 'scale(1.1)' : 'scale(1)'
+                  }} 
+                />
+                
+                <Typography 
+                  variant="h5" 
+                  sx={{ 
+                    fontWeight: 700, 
+                    mb: 1,
+                    color: isDragActive ? 'var(--primary-700)' : 'var(--gray-700)'
+                  }}
+                >
+                  {isDragActive ? 'Drop your file here!' : 'Drag & drop your lab report'}
+                </Typography>
+                
+                <Typography 
+                  variant="body1" 
+                  sx={{ 
+                    color: 'var(--gray-600)', 
+                    mb: 2,
+                    fontSize: '1.1rem'
+                  }}
+                >
+                  or click to browse files
+                </Typography>
+                
+                <Box sx={{ 
+                  display: 'flex', 
+                  justifyContent: 'center', 
+                  gap: 2, 
+                  flexWrap: 'wrap',
+                  mt: 3
+                }}>
+                  <Chip 
+                    label="PDF" 
+                    sx={{ 
+                      background: 'linear-gradient(135deg, #dc2626 0%, #ef4444 100%)',
+                      color: 'white',
+                      fontWeight: 600
+                    }} 
+                  />
+                  <Chip 
+                    label="JPEG" 
+                    sx={{ 
+                      background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)',
+                      color: 'white',
+                      fontWeight: 600
+                    }} 
+                  />
+                  <Chip 
+                    label="PNG" 
+                    sx={{ 
+                      background: 'linear-gradient(135deg, #0ea5e9 0%, #3b82f6 100%)',
+                      color: 'white',
+                      fontWeight: 600
+                    }} 
+                  />
+                </Box>
+                
+                <Typography 
+                  variant="caption" 
+                  sx={{ 
+                    display: 'block', 
+                    mt: 2, 
+                    color: 'var(--gray-500)',
+                    fontSize: '0.9rem'
+                  }}
+                >
+                  Maximum file size: 10MB
+                </Typography>
+              </Box>
+            </Box>
+
+            {/* File Preview */}
+            {file && (
+              <Fade in={true} timeout={500}>
+                <Box sx={{ 
+                  p: 3, 
+                  background: 'linear-gradient(135deg, var(--secondary-50) 0%, var(--secondary-100) 100%)',
+                  borderRadius: 'var(--radius-xl)',
+                  border: '1px solid var(--secondary-200)',
+                  mb: 3,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 2
+                }}>
+                  <Description sx={{ color: 'var(--secondary-600)', fontSize: 40 }} />
+                  <Box sx={{ flex: 1 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 600, color: 'var(--gray-800)' }}>
+                      {file.name}
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: 'var(--gray-600)' }}>
+                      {(file.size / 1024 / 1024).toFixed(2)} MB
+                    </Typography>
+                  </Box>
+                  <CheckCircle sx={{ color: 'var(--secondary-600)' }} />
+                </Box>
+              </Fade>
+            )}
+
+            {/* Upload Progress */}
+            {uploading && (
+              <Fade in={true} timeout={300}>
+                <Box sx={{ mb: 3 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                    <Typography variant="body1" sx={{ fontWeight: 600, color: 'var(--primary-700)' }}>
+                      Processing your report...
+                    </Typography>
+                    <CircularProgress size={20} sx={{ ml: 2, color: 'var(--primary-500)' }} />
+                  </Box>
+                  <LinearProgress 
+                    variant="determinate" 
+                    value={uploadProgress} 
+                    sx={{
+                      height: 8,
+                      borderRadius: 'var(--radius-lg)',
+                      backgroundColor: 'var(--gray-200)',
+                      '& .MuiLinearProgress-bar': {
+                        background: 'var(--gradient-primary)',
+                        borderRadius: 'var(--radius-lg)'
+                      }
+                    }}
+                  />
+                  <Typography variant="caption" sx={{ color: 'var(--gray-600)', mt: 1 }}>
+                    {Math.round(uploadProgress)}% complete
+                  </Typography>
+                </Box>
+              </Fade>
+            )}
+
+            {/* Upload Button */}
+            {file && !uploading && (
+              <Grow in={true} timeout={600}>
+                <Button
+                  variant="contained"
+                  onClick={handleUpload}
+                  size="large"
+                  sx={{
+                    background: 'var(--gradient-primary)',
+                    borderRadius: 'var(--radius-xl)',
+                    px: 4,
+                    py: 2,
+                    fontSize: '1.1rem',
+                    fontWeight: 700,
+                    boxShadow: '0 8px 32px rgba(14, 165, 233, 0.3)',
+                    '&:hover': {
+                      boxShadow: '0 12px 40px rgba(14, 165, 233, 0.4)',
+                      transform: 'translateY(-2px)'
                     }
-                  />
-                  <Chip
-                    label={biomarker.status}
-                    color={getStatusColor(biomarker.status)}
-                    size="small"
-                  />
-                </ListItem>
-              ))}
-            </List>
+                  }}
+                >
+                  <Analytics sx={{ mr: 1 }} />
+                  Analyze Report
+                </Button>
+              </Grow>
+            )}
 
-            <Button
-              variant="contained"
-              onClick={() => navigate('/biomarkers')}
-              sx={{ mt: 2 }}
-            >
-              View All Biomarkers
-            </Button>
-          </Box>
+            {/* Error Display */}
+            {error && (
+              <Fade in={true} timeout={500}>
+                <Alert 
+                  severity="error" 
+                  sx={{ 
+                    mt: 3,
+                    borderRadius: 'var(--radius-xl)',
+                    background: 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)',
+                    border: '1px solid #fca5a5'
+                  }}
+                >
+                  <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                    {error}
+                  </Typography>
+                </Alert>
+              </Fade>
+            )}
+          </div>
+        </Grow>
+
+        {/* Results Display */}
+        {result && (
+          <Fade in={true} timeout={800}>
+            <div className="premium-card" style={{ padding: '3rem' }}>
+              <Alert 
+                severity="success" 
+                sx={{ 
+                  mb: 4,
+                  borderRadius: 'var(--radius-xl)',
+                  background: 'linear-gradient(135deg, var(--secondary-50) 0%, var(--secondary-100) 100%)',
+                  border: '1px solid var(--secondary-300)'
+                }}
+              >
+                <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                  🎉 Report processed successfully!
+                </Typography>
+                <Typography variant="body1">
+                  Found {result.biomarkers?.length || 0} biomarkers ready for analysis.
+                </Typography>
+              </Alert>
+
+              <Typography 
+                variant="h5" 
+                sx={{ 
+                  fontWeight: 700, 
+                  mb: 3,
+                  background: 'var(--gradient-primary)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text'
+                }}
+              >
+                Extracted Biomarkers
+              </Typography>
+              
+              <List sx={{ mb: 4 }}>
+                {result.biomarkers?.map((biomarker, index) => (
+                  <Grow key={biomarker.id} in={true} timeout={500 + index * 100}>
+                    <ListItem 
+                      sx={{ 
+                        background: 'linear-gradient(135deg, var(--gray-50) 0%, var(--primary-50) 100%)',
+                        border: '1px solid var(--primary-200)',
+                        borderRadius: 'var(--radius-xl)',
+                        mb: 2,
+                        p: 3,
+                        transition: 'all 0.3s ease',
+                        '&:hover': {
+                          transform: 'translateY(-2px)',
+                          boxShadow: '0 8px 32px rgba(14, 165, 233, 0.15)'
+                        }
+                      }}
+                    >
+                      <Biotech sx={{ color: 'var(--primary-600)', mr: 2, fontSize: 28 }} />
+                      <ListItemText
+                        primary={
+                          <Typography variant="h6" sx={{ fontWeight: 600, color: 'var(--gray-800)' }}>
+                            {biomarker.testName}
+                          </Typography>
+                        }
+                        secondary={
+                          <Box sx={{ mt: 1 }}>
+                            <Typography variant="body1" sx={{ fontWeight: 500, mb: 1 }}>
+                              Value: {biomarker.value} {biomarker.unit}
+                            </Typography>
+                            {biomarker.referenceRange && (
+                              <Typography variant="body2" sx={{ color: 'var(--gray-600)' }}>
+                                Reference Range: {biomarker.referenceRange.min} - {biomarker.referenceRange.max} {biomarker.referenceRange.unit}
+                              </Typography>
+                            )}
+                          </Box>
+                        }
+                      />
+                      <Chip
+                        label={biomarker.status.toUpperCase()}
+                        className={`status-${biomarker.status}`}
+                        sx={{ fontWeight: 700 }}
+                      />
+                    </ListItem>
+                  </Grow>
+                ))}
+              </List>
+
+              <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center', flexWrap: 'wrap' }}>
+                <Button
+                  variant="contained"
+                  onClick={() => navigate('/biomarkers')}
+                  size="large"
+                  sx={{
+                    background: 'var(--gradient-secondary)',
+                    borderRadius: 'var(--radius-xl)',
+                    px: 4,
+                    py: 2,
+                    fontWeight: 600,
+                    boxShadow: '0 8px 32px rgba(34, 197, 94, 0.3)',
+                    '&:hover': {
+                      boxShadow: '0 12px 40px rgba(34, 197, 94, 0.4)',
+                      transform: 'translateY(-2px)'
+                    }
+                  }}
+                >
+                  View All Biomarkers
+                </Button>
+                <Button
+                  variant="outlined"
+                  onClick={() => navigate('/trends')}
+                  size="large"
+                  sx={{
+                    borderColor: 'var(--primary-300)',
+                    color: 'var(--primary-700)',
+                    borderRadius: 'var(--radius-xl)',
+                    px: 4,
+                    py: 2,
+                    fontWeight: 600,
+                    '&:hover': {
+                      background: 'var(--primary-50)',
+                      borderColor: 'var(--primary-500)',
+                      transform: 'translateY(-2px)'
+                    }
+                  }}
+                >
+                  Analyze Trends
+                </Button>
+              </Box>
+            </div>
+          </Fade>
         )}
-      </Paper>
-    </Container>
+      </Container>
+    </div>
   );
 };
 
