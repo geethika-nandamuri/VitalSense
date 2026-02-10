@@ -21,6 +21,7 @@ app.use('/api/biomarkers', require('./routes/biomarkers'));
 app.use('/api/recommendations', require('./routes/recommendations'));
 app.use('/api/trends', require('./routes/trends'));
 app.use('/api/summary', require('./routes/summary'));
+app.use('/api', require('./routes/appointments'));
 
 // Health check
 app.get('/api/health', (req, res) => {

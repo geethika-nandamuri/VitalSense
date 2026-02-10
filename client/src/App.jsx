@@ -9,6 +9,7 @@ import Signup from './pages/Signup';
 import Dashboard from './pages/Dashboard';
 import UploadReport from './pages/UploadReport';
 import Reports from './pages/Reports';
+import Appointments from './pages/Appointments';
 import Biomarkers from './pages/Biomarkers';
 import Trends from './pages/Trends';
 import Recommendations from './pages/Recommendations';
@@ -102,6 +103,7 @@ const AppContent = () => {
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/upload" element={<UploadReport />} />
         <Route path="/reports" element={<Reports />} />
+        <Route path="/appointments" element={<Appointments />} />
         <Route path="/biomarkers" element={<Biomarkers />} />
         <Route path="/trends" element={<Trends />} />
         <Route path="/recommendations" element={<Recommendations />} />
