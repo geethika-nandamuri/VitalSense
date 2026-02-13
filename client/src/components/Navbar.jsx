@@ -61,15 +61,16 @@ const Navbar = () => {
     setMobileOpen(!mobileOpen);
   };
 
-  const navigationItems = [
-    { text: 'Dashboard', path: '/dashboard', icon: <Dashboard /> },
+  const navigationItems = user?.role === 'DOCTOR' ? [
+    { text: 'Dashboard', path: '/doctor/dashboard', icon: <Dashboard /> },
+  ] : [
+    { text: 'Dashboard', path: '/patient/dashboard', icon: <Dashboard /> },
     { text: 'Upload Report', path: '/upload', icon: <Upload /> },
     { text: 'Reports', path: '/reports', icon: <Description /> },
     { text: 'Appointments', path: '/appointments', icon: <CalendarToday /> },
     { text: 'Biomarkers', path: '/biomarkers', icon: <Biotech /> },
     { text: 'Trends', path: '/trends', icon: <TrendingUp /> },
     { text: 'Recommendations', path: '/recommendations', icon: <Recommend /> },
-    { text: 'Summary', path: '/summary', icon: <Summarize /> },
   ];
 
   const drawer = (
@@ -148,7 +149,7 @@ const Navbar = () => {
             <Typography
               variant="h6"
               component={Link}
-              to="/dashboard"
+              to={user?.role === 'DOCTOR' ? '/doctor/dashboard' : '/patient/dashboard'}
               sx={{
                 flexGrow: 1,
                 textDecoration: 'none',

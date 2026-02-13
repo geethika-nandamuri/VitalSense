@@ -4,12 +4,15 @@ import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
+import RoleRoute from './components/auth/RoleRoute';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import Dashboard from './pages/Dashboard';
+import PatientDashboard from './pages/PatientDashboard';
+import DoctorDashboard from './pages/DoctorDashboard';
 import UploadReport from './pages/UploadReport';
 import Reports from './pages/Reports';
-import Appointments from './pages/Appointments';
+import PatientAppointments from './components/PatientAppointments';
 import Biomarkers from './pages/Biomarkers';
 import Trends from './pages/Trends';
 import Recommendations from './pages/Recommendations';
@@ -84,7 +87,7 @@ const theme = createTheme({
 });
 
 const AppContent = () => {
-  const { loading } = useAuth();
+  const { loading, user } = useAuth();
 
   if (loading) {
     return (
@@ -100,14 +103,86 @@ const AppContent = () => {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/upload" element={<UploadReport />} />
-        <Route path="/reports" element={<Reports />} />
-        <Route path="/appointments" element={<Appointments />} />
-        <Route path="/biomarkers" element={<Biomarkers />} />
-        <Route path="/trends" element={<Trends />} />
-        <Route path="/recommendations" element={<Recommendations />} />
-        <Route path="/summary" element={<Summary />} />
+        
+        {/* Patient Routes */}
+        <Route
+          path="/patient/dashboard"
+          element={
+            <RoleRoute allowedRoles={['PATIENT']}>
+              <PatientDashboard />
+            </RoleRoute>
+          }
+        />
+        
+        {/* Doctor Routes */}
+        <Route
+          path="/doctor/dashboard"
+          element={
+            <RoleRoute allowedRoles={['DOCTOR']}>
+              <DoctorDashboard />
+            </RoleRoute>
+          }
+        />
+        
+        {/* Legacy/Shared Routes - Patient Only */}
+        <Route
+          path="/dashboard"
+          element={
+            user ? (
+              <Navigate to={user.role === 'DOCTOR' ? '/doctor/dashboard' : '/patient/dashboard'} replace />
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          }
+        />
+        <Route
+          path="/upload"
+          element={
+            <RoleRoute allowedRoles={['PATIENT']}>
+              <UploadReport />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="/reports"
+          element={
+            <RoleRoute allowedRoles={['PATIENT']}>
+              <Reports />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="/appointments"
+          element={
+            <RoleRoute allowedRoles={['PATIENT']}>
+              <PatientAppointments />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="/biomarkers"
+          element={
+            <RoleRoute allowedRoles={['PATIENT']}>
+              <Biomarkers />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="/trends"
+          element={
+            <RoleRoute allowedRoles={['PATIENT']}>
+              <Trends />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="/recommendations"
+          element={
+            <RoleRoute allowedRoles={['PATIENT']}>
+              <Recommendations />
+            </RoleRoute>
+          }
+        />
         <Route
           path="/profile"
           element={
@@ -116,7 +191,16 @@ const AppContent = () => {
             </ProtectedRoute>
           }
         />
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route
+          path="/"
+          element={
+            user ? (
+              <Navigate to={user.role === 'DOCTOR' ? '/doctor/dashboard' : '/patient/dashboard'} replace />
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          }
+        />
       </Routes>
     </div>
   );

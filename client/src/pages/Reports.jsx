@@ -9,21 +9,25 @@ import {
   DialogContent,
   DialogActions,
   Button,
-  Chip
+  Chip,
+  Drawer
 } from '@mui/material';
 import {
   Delete,
   Description,
   CheckCircle,
   Schedule,
-  Error
+  Error,
+  Close
 } from '@mui/icons-material';
 import axios from 'axios';
+import ExtractedBiomarkersView from '../components/ExtractedBiomarkersView';
 
 const Reports = () => {
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
   const [deleteDialog, setDeleteDialog] = useState({ open: false, report: null });
+  const [detailsDrawer, setDetailsDrawer] = useState({ open: false, report: null });
 
   useEffect(() => {
     fetchReports();
@@ -56,6 +60,47 @@ const Reports = () => {
 
   const handleDeleteCancel = () => {
     setDeleteDialog({ open: false, report: null });
+  };
+
+  const handleViewDetails = (report) => {
+    setDetailsDrawer({ open: true, report });
+  };
+
+  const handleCloseDetails = () => {
+    setDetailsDrawer({ open: false, report: null });
+  };
+
+  const adaptReportToBiomarkers = (report) => {
+    if (!report) return [];
+    
+    // Check if extractedData is an array (raw OCR data)
+    if (Array.isArray(report.extractedData)) {
+      return report.extractedData.map(item => ({
+        id: item._id,
+        testName: item.testName,
+        value: item.value,
+        unit: item.unit || 'N/A',
+        referenceRange: item.referenceRange,
+        status: item.status || 'unknown'
+      }));
+    }
+    
+    // Check other possible paths
+    const biomarkers = report.extractedData?.biomarkers ||
+                      report.biomarkers ||
+                      report.analysis?.biomarkers ||
+                      [];
+    
+    return biomarkers;
+  };
+
+  const getStatusBiomarkerColor = (status) => {
+    switch (status?.toLowerCase()) {
+      case 'normal': return 'success';
+      case 'high': return 'error';
+      case 'low': return 'warning';
+      default: return 'default';
+    }
   };
 
   const getStatusIcon = (status) => {
@@ -122,12 +167,16 @@ const Reports = () => {
               <div
                 key={report._id}
                 className="report-card animate-on-load hover-lift"
-                style={{ animationDelay: `${index * 0.1}s` }}
+                style={{ animationDelay: `${index * 0.1}s`, cursor: 'pointer' }}
+                onClick={() => handleViewDetails(report)}
               >
                 {/* Delete Button */}
                 <IconButton
                   className="delete-btn"
-                  onClick={() => handleDeleteClick(report)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteClick(report);
+                  }}
                   sx={{
                     position: 'absolute',
                     top: 12,
@@ -188,6 +237,42 @@ const Reports = () => {
             ))}
           </div>
         )}
+
+        {/* Details Drawer */}
+        <Drawer
+          anchor="right"
+          open={detailsDrawer.open}
+          onClose={handleCloseDetails}
+          PaperProps={{
+            sx: {
+              width: { xs: '100%', sm: '600px', md: '700px' },
+              background: 'linear-gradient(135deg, var(--gray-50) 0%, var(--primary-50) 100%)',
+              p: 0
+            }
+          }}
+        >
+          <Box sx={{ p: 3, borderBottom: '1px solid var(--gray-200)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'white' }}>
+            <Box>
+              <Typography variant="h5" sx={{ fontWeight: 700, color: 'var(--gray-800)' }}>
+                Report Details
+              </Typography>
+              <Typography variant="body2" sx={{ color: 'var(--gray-600)', mt: 0.5 }}>
+                {detailsDrawer.report?.fileName}
+              </Typography>
+            </Box>
+            <IconButton onClick={handleCloseDetails} sx={{ color: 'var(--gray-600)' }}>
+              <Close />
+            </IconButton>
+          </Box>
+          <Box sx={{ p: 3, overflowY: 'auto', maxHeight: 'calc(100vh - 100px)' }}>
+            <div className="premium-card" style={{ padding: '2rem' }}>
+              <ExtractedBiomarkersView 
+                biomarkers={adaptReportToBiomarkers(detailsDrawer.report)}
+                fileName={detailsDrawer.report?.fileName}
+              />
+            </div>
+          </Box>
+        </Drawer>
 
         {/* Delete Confirmation Dialog */}
         <Dialog

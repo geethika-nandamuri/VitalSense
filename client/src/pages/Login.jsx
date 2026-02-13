@@ -9,7 +9,9 @@ import {
   Paper,
   Divider,
   IconButton,
-  InputAdornment
+  InputAdornment,
+  ToggleButton,
+  ToggleButtonGroup
 } from '@mui/material';
 import { Visibility, VisibilityOff, Email, Lock } from '@mui/icons-material';
 import Button from '../components/ui/Button';
@@ -20,6 +22,7 @@ const Login = () => {
     email: '',
     password: ''
   });
+  const [role, setRole] = useState('PATIENT');
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
@@ -28,7 +31,7 @@ const Login = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const from = location.state?.from?.pathname || '/dashboard';
+  const from = location.state?.from?.pathname || (role === 'DOCTOR' ? '/doctor/dashboard' : '/patient/dashboard');
 
   const validateForm = () => {
     const newErrors = {};
@@ -55,7 +58,7 @@ const Login = () => {
     if (!validateForm()) return;
     
     setIsLoading(true);
-    const result = await login(formData.email, formData.password);
+    const result = await login(formData.email, formData.password, role);
     
     if (result.success) {
       navigate(from, { replace: true });
@@ -114,9 +117,23 @@ const Login = () => {
             >
               Welcome Back
             </Typography>
-            <Typography variant="body1" color="text.secondary">
+            <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
               Sign in to your VitalSense account
             </Typography>
+            
+            <ToggleButtonGroup
+              value={role}
+              exclusive
+              onChange={(e, newRole) => newRole && setRole(newRole)}
+              sx={{ mb: 2 }}
+            >
+              <ToggleButton value="PATIENT" sx={{ px: 4 }}>
+                Patient Login
+              </ToggleButton>
+              <ToggleButton value="DOCTOR" sx={{ px: 4 }}>
+                Doctor Login
+              </ToggleButton>
+            </ToggleButtonGroup>
           </Box>
 
           {error && (

@@ -7,9 +7,6 @@ import {
   Button,
   Alert,
   CircularProgress,
-  List,
-  ListItem,
-  ListItemText,
   Chip,
   Fade,
   Grow,
@@ -20,11 +17,11 @@ import {
   Description,
   CheckCircle,
   Error,
-  Analytics,
-  Biotech
+  Analytics
 } from '@mui/icons-material';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import ExtractedBiomarkersView from '../components/ExtractedBiomarkersView';
 
 const UploadReport = () => {
   const [file, setFile] = useState(null);
@@ -389,85 +386,12 @@ const UploadReport = () => {
         {result && (
           <Fade in={true} timeout={800}>
             <div className="premium-card" style={{ padding: '3rem' }}>
-              <Alert 
-                severity="success" 
-                sx={{ 
-                  mb: 4,
-                  borderRadius: 'var(--radius-xl)',
-                  background: 'linear-gradient(135deg, var(--secondary-50) 0%, var(--secondary-100) 100%)',
-                  border: '1px solid var(--secondary-300)'
-                }}
-              >
-                <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                  🎉 Report processed successfully!
-                </Typography>
-                <Typography variant="body1">
-                  Found {result.biomarkers?.length || 0} biomarkers ready for analysis.
-                </Typography>
-              </Alert>
+              <ExtractedBiomarkersView 
+                biomarkers={result.biomarkers}
+                fileName={null}
+              />
 
-              <Typography 
-                variant="h5" 
-                sx={{ 
-                  fontWeight: 700, 
-                  mb: 3,
-                  background: 'var(--gradient-primary)',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  backgroundClip: 'text'
-                }}
-              >
-                Extracted Biomarkers
-              </Typography>
-              
-              <List sx={{ mb: 4 }}>
-                {result.biomarkers?.map((biomarker, index) => (
-                  <Grow key={biomarker.id} in={true} timeout={500 + index * 100}>
-                    <ListItem 
-                      sx={{ 
-                        background: 'linear-gradient(135deg, var(--gray-50) 0%, var(--primary-50) 100%)',
-                        border: '1px solid var(--primary-200)',
-                        borderRadius: 'var(--radius-xl)',
-                        mb: 2,
-                        p: 3,
-                        transition: 'all 0.3s ease',
-                        '&:hover': {
-                          transform: 'translateY(-2px)',
-                          boxShadow: '0 8px 32px rgba(14, 165, 233, 0.15)'
-                        }
-                      }}
-                    >
-                      <Biotech sx={{ color: 'var(--primary-600)', mr: 2, fontSize: 28 }} />
-                      <ListItemText
-                        primary={
-                          <Typography variant="h6" sx={{ fontWeight: 600, color: 'var(--gray-800)' }}>
-                            {biomarker.testName}
-                          </Typography>
-                        }
-                        secondary={
-                          <Box sx={{ mt: 1 }}>
-                            <Typography variant="body1" sx={{ fontWeight: 500, mb: 1 }}>
-                              Value: {biomarker.value} {biomarker.unit}
-                            </Typography>
-                            {biomarker.referenceRange && (
-                              <Typography variant="body2" sx={{ color: 'var(--gray-600)' }}>
-                                Reference Range: {biomarker.referenceRange.min} - {biomarker.referenceRange.max} {biomarker.referenceRange.unit}
-                              </Typography>
-                            )}
-                          </Box>
-                        }
-                      />
-                      <Chip
-                        label={biomarker.status.toUpperCase()}
-                        className={`status-${biomarker.status}`}
-                        sx={{ fontWeight: 700 }}
-                      />
-                    </ListItem>
-                  </Grow>
-                ))}
-              </List>
-
-              <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center', flexWrap: 'wrap' }}>
+              <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center', flexWrap: 'wrap', mt: 4 }}>
                 <Button
                   variant="contained"
                   onClick={() => navigate('/biomarkers')}
