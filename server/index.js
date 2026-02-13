@@ -16,6 +16,8 @@ app.use(express.urlencoded({ extended: true }));
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));
+app.use('/api/patient', require('./routes/patient'));
+app.use('/api/doctor', require('./routes/doctor'));
 app.use('/api/reports', require('./routes/reports'));
 app.use('/api/biomarkers', require('./routes/biomarkers'));
 app.use('/api/recommendations', require('./routes/recommendations'));

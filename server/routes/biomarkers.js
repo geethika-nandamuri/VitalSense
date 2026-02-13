@@ -2,6 +2,7 @@ const express = require('express');
 const Biomarker = require('../models/Biomarker');
 const { authenticate, optionalAuth } = require('../middleware/auth');
 const { retrieveBiomarkerInfo } = require('../services/ragService');
+const { buildPatientTrends } = require('../services/trendService');
 
 const router = express.Router();
 
@@ -25,29 +26,11 @@ router.get('/', optionalAuth, async (req, res) => {
   }
 });
 
-// Get biomarkers grouped by test name
+// Get biomarkers grouped by test name - USES SHARED TREND BUILDER
 router.get('/grouped', optionalAuth, async (req, res) => {
   try {
-    const biomarkers = await Biomarker.find({ userId: req.userId || null })
-      .sort({ date: 1 });
-    
-    // Group by test name
-    const grouped = {};
-    biomarkers.forEach(b => {
-      if (!grouped[b.testName]) {
-        grouped[b.testName] = [];
-      }
-      grouped[b.testName].push({
-        id: b._id,
-        value: b.value,
-        unit: b.unit,
-        normalizedValue: b.normalizedValue,
-        normalizedUnit: b.normalizedUnit,
-        status: b.status,
-        referenceRange: b.referenceRange,
-        date: b.date
-      });
-    });
+    // Use SHARED trend builder for consistency
+    const grouped = await buildPatientTrends(req.userId || null);
     
     res.json({ grouped });
   } catch (error) {

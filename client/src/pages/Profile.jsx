@@ -1,169 +1,162 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Container,
   Paper,
   Typography,
   Box,
   TextField,
-  Button,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  Chip,
-  Alert
+  IconButton,
+  Alert,
+  CircularProgress,
+  Divider
 } from '@mui/material';
+import { ContentCopy, Person } from '@mui/icons-material';
 import axios from 'axios';
+import { useAuth } from '../context/AuthContext';
 
 const Profile = () => {
-  const [preferences, setPreferences] = useState({
-    diet: 'none',
-    age: '',
-    conditions: [],
-    gender: 'prefer-not-to-say'
-  });
-  const [newCondition, setNewCondition] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState('');
+  const { user } = useAuth();
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [copySuccess, setCopySuccess] = useState(false);
+  const [error, setError] = useState('');
 
-  const handleSave = async () => {
-    setSaving(true);
-    setMessage('');
-    try {
-      // Store preferences in localStorage since we don't have user auth
-      localStorage.setItem('userPreferences', JSON.stringify(preferences));
-      setMessage('Preferences saved successfully!');
-    } catch (error) {
-      setMessage('Error saving preferences');
-      console.error(error);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleAddCondition = () => {
-    if (newCondition.trim() && !preferences.conditions.includes(newCondition.trim())) {
-      setPreferences({
-        ...preferences,
-        conditions: [...preferences.conditions, newCondition.trim()]
-      });
-      setNewCondition('');
-    }
-  };
-
-  const handleRemoveCondition = (condition) => {
-    setPreferences({
-      ...preferences,
-      conditions: preferences.conditions.filter(c => c !== condition)
-    });
-  };
-
-  // Load preferences from localStorage on mount
-  React.useEffect(() => {
-    const savedPreferences = localStorage.getItem('userPreferences');
-    if (savedPreferences) {
-      try {
-        setPreferences(JSON.parse(savedPreferences));
-      } catch (error) {
-        console.error('Error loading preferences:', error);
-      }
-    }
+  useEffect(() => {
+    fetchProfile();
   }, []);
+
+  const fetchProfile = async () => {
+    try {
+      const response = await axios.get('/api/patient/profile');
+      if (response.data.success) {
+        setProfile(response.data.data);
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to load profile');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCopyPatientId = () => {
+    if (profile?.patientId) {
+      navigator.clipboard.writeText(profile.patientId);
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 2000);
+    }
+  };
+
+  if (loading) {
+    return (
+      <Container maxWidth="md" sx={{ mt: 4, mb: 4, textAlign: 'center' }}>
+        <CircularProgress />
+      </Container>
+    );
+  }
+
+  if (error) {
+    return (
+      <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
+        <Alert severity="error">{error}</Alert>
+      </Container>
+    );
+  }
 
   return (
     <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
-      <Typography variant="h4" gutterBottom>
-        Profile & Preferences
-      </Typography>
-
-      <Paper sx={{ p: 4, mt: 2 }}>
-        <Typography variant="h6" gutterBottom sx={{ mt: 3 }}>
-          Preferences
-        </Typography>
-        <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
-          These preferences help us provide personalized recommendations.
-        </Typography>
-
-        <FormControl fullWidth sx={{ mb: 2 }}>
-          <InputLabel>Diet Preference</InputLabel>
-          <Select
-            value={preferences.diet}
-            onChange={(e) => setPreferences({ ...preferences, diet: e.target.value })}
-            label="Diet Preference"
-          >
-            <MenuItem value="none">None</MenuItem>
-            <MenuItem value="vegetarian">Vegetarian</MenuItem>
-            <MenuItem value="vegan">Vegan</MenuItem>
-            <MenuItem value="non-vegetarian">Non-Vegetarian</MenuItem>
-          </Select>
-        </FormControl>
-
-        <TextField
-          fullWidth
-          label="Age"
-          type="number"
-          value={preferences.age}
-          onChange={(e) => setPreferences({ ...preferences, age: e.target.value })}
-          sx={{ mb: 2 }}
-        />
-
-        <FormControl fullWidth sx={{ mb: 2 }}>
-          <InputLabel>Gender</InputLabel>
-          <Select
-            value={preferences.gender}
-            onChange={(e) => setPreferences({ ...preferences, gender: e.target.value })}
-            label="Gender"
-          >
-            <MenuItem value="prefer-not-to-say">Prefer not to say</MenuItem>
-            <MenuItem value="male">Male</MenuItem>
-            <MenuItem value="female">Female</MenuItem>
-            <MenuItem value="other">Other</MenuItem>
-          </Select>
-        </FormControl>
-
-        <Box sx={{ mb: 2 }}>
-          <Typography variant="body1" gutterBottom>
-            Health Conditions
+      <Paper
+        elevation={0}
+        sx={{
+          p: 4,
+          borderRadius: '12px',
+          border: '1px solid #f0f0f0',
+        }}
+      >
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+          <Person sx={{ fontSize: 40, color: '#667eea' }} />
+          <Typography variant="h4" sx={{ fontWeight: 700 }}>
+            Patient Profile
           </Typography>
-          <Box sx={{ display: 'flex', gap: 1, mb: 1, flexWrap: 'wrap' }}>
-            {preferences.conditions.map((condition) => (
-              <Chip
-                key={condition}
-                label={condition}
-                onDelete={() => handleRemoveCondition(condition)}
-              />
-            ))}
-          </Box>
-          <Box sx={{ display: 'flex', gap: 1 }}>
-            <TextField
-              size="small"
-              placeholder="Add condition (e.g., Diabetes, Thyroid)"
-              value={newCondition}
-              onChange={(e) => setNewCondition(e.target.value)}
-              onKeyPress={(e) => {
-                if (e.key === 'Enter') {
-                  handleAddCondition();
-                }
-              }}
-            />
-            <Button onClick={handleAddCondition}>Add</Button>
-          </Box>
         </Box>
 
-        {message && (
-          <Alert severity={message.includes('Error') ? 'error' : 'success'} sx={{ mb: 2 }}>
-            {message}
+        <Divider sx={{ mb: 3 }} />
+
+        <Box sx={{ mb: 3 }}>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+            Name
+          </Typography>
+          <TextField
+            fullWidth
+            value={profile?.name || ''}
+            InputProps={{
+              readOnly: true,
+            }}
+            sx={{
+              '& .MuiInputBase-input': {
+                fontWeight: 600,
+                fontSize: '1.1rem',
+              },
+            }}
+          />
+        </Box>
+
+        <Box sx={{ mb: 3 }}>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+            Email
+          </Typography>
+          <TextField
+            fullWidth
+            value={profile?.email || ''}
+            InputProps={{
+              readOnly: true,
+            }}
+            sx={{
+              '& .MuiInputBase-input': {
+                fontWeight: 600,
+              },
+            }}
+          />
+        </Box>
+
+        <Box sx={{ mb: 3 }}>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+            Patient ID
+          </Typography>
+          <TextField
+            fullWidth
+            value={profile?.patientId || ''}
+            InputProps={{
+              readOnly: true,
+              endAdornment: (
+                <IconButton
+                  onClick={handleCopyPatientId}
+                  sx={{
+                    '&:hover': { backgroundColor: '#667eea15' },
+                  }}
+                >
+                  <ContentCopy sx={{ color: '#667eea' }} />
+                </IconButton>
+              ),
+            }}
+            sx={{
+              '& .MuiInputBase-input': {
+                fontFamily: 'monospace',
+                fontWeight: 600,
+                fontSize: '1.1rem',
+                color: '#667eea',
+              },
+            }}
+          />
+          <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+            Share this ID with your doctor to grant access to your reports
+          </Typography>
+        </Box>
+
+        {copySuccess && (
+          <Alert severity="success" sx={{ borderRadius: '8px' }}>
+            Patient ID copied to clipboard!
           </Alert>
         )}
-
-        <Button
-          variant="contained"
-          onClick={handleSave}
-          disabled={saving}
-          fullWidth
-        >
-          {saving ? 'Saving...' : 'Save Preferences'}
-        </Button>
       </Paper>
     </Container>
   );

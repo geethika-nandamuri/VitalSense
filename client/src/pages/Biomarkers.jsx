@@ -360,17 +360,27 @@ const Biomarkers = () => {
                               startIcon={<Analytics />}
                               onClick={() => handleGetExplanation(biomarker.testName)}
                               sx={{
-                                borderRadius: 'var(--radius-lg)',
-                                background: 'var(--gradient-accent)',
+                                backgroundColor: '#2563EB',
                                 color: 'white',
                                 fontWeight: 600,
-                                px: 2,
+                                px: 2.5,
                                 py: 1,
-                                boxShadow: '0 4px 16px rgba(212, 70, 239, 0.3)',
+                                borderRadius: '10px',
+                                textTransform: 'none',
+                                boxShadow: '0 1px 2px rgba(0, 0, 0, 0.08)',
                                 '&:hover': {
-                                  boxShadow: '0 6px 20px rgba(212, 70, 239, 0.4)',
+                                  backgroundColor: '#1D4ED8',
+                                  boxShadow: '0 4px 12px rgba(37, 99, 235, 0.3)',
                                   transform: 'translateY(-1px)'
-                                }
+                                },
+                                '&:focus': {
+                                  outline: '2px solid #2563EB',
+                                  outlineOffset: '2px'
+                                },
+                                '&:active': {
+                                  transform: 'translateY(0)'
+                                },
+                                transition: 'all 0.2s ease'
                               }}
                             >
                               Explain

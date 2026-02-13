@@ -152,11 +152,17 @@ const MetricCard = ({ title, value, icon, trend, loading = false, delay = 0 }) =
 // Custom Tooltip for Charts
 const CustomTooltip = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
+    const point = payload[0]?.payload;
     return (
       <div className="premium-card" style={{ padding: '1rem', minWidth: '200px' }}>
         <Typography variant="h6" sx={{ fontWeight: 600, mb: 1, color: 'var(--gray-800)' }}>
-          {label}
+          {label.split('\n')[0]}
         </Typography>
+        {point?.reportName && (
+          <Typography variant="caption" sx={{ display: 'block', mb: 1, color: 'var(--gray-600)' }}>
+            {point.reportName}
+          </Typography>
+        )}
         {payload.map((entry, index) => (
           <Box key={index} sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
             <Box 
@@ -178,59 +184,93 @@ const CustomTooltip = ({ active, payload, label }) => {
   return null;
 };
 
+// Custom X-Axis Tick for Multi-line Labels
+const CustomXAxisTick = ({ x, y, payload }) => {
+  const lines = payload.value.split('\n');
+  return (
+    <g transform={`translate(${x},${y})`}>
+      {lines.map((line, index) => (
+        <text
+          key={index}
+          x={0}
+          y={index * 14 + 4}
+          dy={0}
+          textAnchor="middle"
+          fill="var(--gray-600)"
+          fontSize={11}
+          fontWeight={500}
+        >
+          {line}
+        </text>
+      ))}
+    </g>
+  );
+};
+
 const Trends = () => {
-  const [groupedData, setGroupedData] = useState({});
-  const [selectedTest, setSelectedTest] = useState('');
-  const [trendData, setTrendData] = useState(null);
+  const [trends, setTrends] = useState([]);
+  const [selectedTrend, setSelectedTrend] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchGroupedData();
+    fetchTrends();
   }, []);
 
-  useEffect(() => {
-    if (selectedTest) {
-      fetchTrendData(selectedTest);
-    }
-  }, [selectedTest]);
-
-  const fetchGroupedData = async () => {
+  const fetchTrends = async () => {
     try {
-      const response = await axios.get('/api/biomarkers/grouped');
-      setGroupedData(response.data.grouped || {});
-      const testNames = Object.keys(response.data.grouped || {});
-      if (testNames.length > 0) {
-        setSelectedTest(testNames[0]);
+      const response = await axios.get('/api/patient/trends');
+      const trendsData = response.data.trends || [];
+      setTrends(trendsData);
+      if (trendsData.length > 0) {
+        setSelectedTrend(trendsData[0]);
       }
     } catch (error) {
-      console.error('Error fetching grouped data:', error);
+      console.error('Error fetching trends:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchTrendData = async (testName) => {
-    try {
-      const response = await axios.get(`/api/trends/${encodeURIComponent(testName)}`);
-      setTrendData(response.data);
-    } catch (error) {
-      console.error('Error fetching trend data:', error);
-      setTrendData(null);
-    }
-  };
-
   const prepareChartData = () => {
-    if (!trendData || !trendData.dataPoints) return [];
+    if (!selectedTrend || !selectedTrend.points) return [];
 
-    return trendData.dataPoints.map(point => ({
-      date: new Date(point.date).toLocaleDateString('en-US', {
+    // Check if there are duplicate dates
+    const dateCounts = {};
+    selectedTrend.points.forEach(point => {
+      const dateStr = new Date(point.date).toLocaleDateString('en-US', {
         month: 'short',
         day: 'numeric'
-      }),
-      value: point.value,
-      normalizedValue: point.normalizedValue,
-      status: point.status
-    }));
+      });
+      dateCounts[dateStr] = (dateCounts[dateStr] || 0) + 1;
+    });
+    const hasDuplicates = Object.values(dateCounts).some(count => count > 1);
+
+    return selectedTrend.points.map((point, index) => {
+      const dateStr = new Date(point.date).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric'
+      });
+      
+      // Truncate report name for X-axis label (max 14-18 chars)
+      let shortName = point.reportName;
+      if (!shortName) {
+        shortName = `Report #${index + 1}`;
+      } else if (shortName.length > 16) {
+        shortName = shortName.substring(0, 16) + '...';
+      }
+      
+      // Create two-line label format
+      const displayLabel = hasDuplicates && shortName 
+        ? `${dateStr}\n${shortName}` 
+        : dateStr;
+
+      return {
+        date: displayLabel,
+        value: point.value,
+        reportName: point.reportName,
+        reportId: point.reportId
+      };
+    });
   };
 
   const getAssessmentColor = (assessment) => {
@@ -251,7 +291,7 @@ const Trends = () => {
     }
   };
 
-  const testNames = Object.keys(groupedData);
+  const testNames = trends.map(t => t.name);
   const chartData = prepareChartData();
 
   return (
@@ -327,8 +367,11 @@ const Trends = () => {
                   Select Biomarker for Analysis
                 </InputLabel>
                 <Select
-                  value={selectedTest}
-                  onChange={(e) => setSelectedTest(e.target.value)}
+                  value={selectedTrend?.key || ''}
+                  onChange={(e) => {
+                    const trend = trends.find(t => t.key === e.target.value);
+                    setSelectedTrend(trend);
+                  }}
                   label="Select Biomarker for Analysis"
                   sx={{
                     fontWeight: 600,
@@ -337,11 +380,11 @@ const Trends = () => {
                     }
                   }}
                 >
-                  {testNames.map((test) => (
-                    <MenuItem key={test} value={test} sx={{ fontWeight: 500 }}>
+                  {trends.map((trend) => (
+                    <MenuItem key={trend.key} value={trend.key} sx={{ fontWeight: 500 }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <ShowChart sx={{ color: 'var(--primary-500)' }} />
-                        {test}
+                        {trend.name} ({trend.stats.dataPoints} points)
                       </Box>
                     </MenuItem>
                   ))}
@@ -365,94 +408,47 @@ const Trends = () => {
                   Loading trend analysis...
                 </Typography>
               </Box>
-            ) : trendData ? (
+            ) : selectedTrend ? (
               <Box>
                 {/* Metrics Grid */}
                 <Grid container spacing={3} sx={{ mb: 4 }}>
                   <Grid item xs={12} sm={6} md={3}>
                     <MetricCard
                       title="Trend Direction"
-                      value={trendData.trend.charAt(0).toUpperCase() + trendData.trend.slice(1)}
+                      value={selectedTrend.stats.direction.charAt(0).toUpperCase() + selectedTrend.stats.direction.slice(1)}
                       icon={<TrendingUp />}
-                      trend={trendData.trend}
+                      trend={selectedTrend.stats.direction}
                       delay={0}
                     />
                   </Grid>
                   <Grid item xs={12} sm={6} md={3}>
                     <MetricCard
                       title="Change Rate"
-                      value={`${trendData.percentChange}%`}
+                      value={`${selectedTrend.stats.changeRate}%`}
                       icon={<Analytics />}
-                      trend={parseFloat(trendData.percentChange) > 0 ? 'increasing' : 'decreasing'}
+                      trend={selectedTrend.stats.changeRate > 0 ? 'increasing' : 'decreasing'}
                       delay={100}
                     />
                   </Grid>
                   <Grid item xs={12} sm={6} md={3}>
                     <MetricCard
-                      title="Assessment"
-                      value={trendData.trendAssessment.charAt(0).toUpperCase() + trendData.trendAssessment.slice(1)}
-                      icon={getAssessmentIcon(trendData.trendAssessment)}
-                      trend={trendData.trendAssessment === 'improving' ? 'increasing' : trendData.trendAssessment === 'concerning' ? 'decreasing' : 'stable'}
+                      title="Data Points"
+                      value={selectedTrend.stats.dataPoints}
+                      icon={<Timeline />}
+                      trend="stable"
                       delay={200}
                     />
                   </Grid>
                   <Grid item xs={12} sm={6} md={3}>
                     <MetricCard
-                      title="Data Points"
-                      value={trendData.dataPoints?.length || 0}
-                      icon={<Timeline />}
+                      title="Unit"
+                      value={selectedTrend.unit}
+                      icon={<Assessment />}
                       trend="stable"
                       delay={300}
                     />
                   </Grid>
                 </Grid>
-
-                {/* AI Insights */}
-                {trendData.insights && trendData.insights.length > 0 && (
-                  <Fade in={true} timeout={1200}>
-                    <Box sx={{ mb: 4 }}>
-                      <Typography 
-                        variant="h5" 
-                        sx={{ 
-                          fontWeight: 700, 
-                          mb: 3,
-                          background: 'var(--gradient-accent)',
-                          WebkitBackgroundClip: 'text',
-                          WebkitTextFillColor: 'transparent',
-                          backgroundClip: 'text',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 1
-                        }}
-                      >
-                        <Analytics sx={{ color: 'var(--accent-500)' }} />
-                        AI-Powered Insights
-                      </Typography>
-                      
-                      {trendData.insights.map((insight, index) => (
-                        <Grow key={index} in={true} timeout={800 + index * 200}>
-                          <Alert 
-                            severity="info" 
-                            sx={{ 
-                              mb: 2,
-                              borderRadius: 'var(--radius-xl)',
-                              background: 'linear-gradient(135deg, var(--primary-50) 0%, var(--accent-50) 100%)',
-                              border: '1px solid var(--primary-200)',
-                              backdropFilter: 'blur(10px)',
-                              '& .MuiAlert-icon': {
-                                color: 'var(--primary-600)'
-                              }
-                            }}
-                          >
-                            <Typography variant="body1" sx={{ fontWeight: 500, lineHeight: 1.6 }}>
-                              {insight}
-                            </Typography>
-                          </Alert>
-                        </Grow>
-                      ))}
-                    </Box>
-                  </Fade>
-                )}
 
                 {/* Premium Chart */}
                 {chartData.length > 0 && (
@@ -480,7 +476,7 @@ const Trends = () => {
                         }}
                       >
                         <ShowChart sx={{ color: 'var(--primary-500)' }} />
-                        Trend Visualization
+                        {selectedTrend.name}
                       </Typography>
                       
                       <Box sx={{ width: '100%', height: 400, position: 'relative' }}>
@@ -500,8 +496,13 @@ const Trends = () => {
                             <XAxis 
                               dataKey="date" 
                               stroke="var(--gray-600)"
-                              fontSize={12}
+                              fontSize={11}
                               fontWeight={500}
+                              interval={0}
+                              angle={0}
+                              textAnchor="middle"
+                              height={60}
+                              tick={<CustomXAxisTick />}
                             />
                             <YAxis 
                               stroke="var(--gray-600)"
@@ -521,7 +522,7 @@ const Trends = () => {
                               stroke="var(--primary-500)"
                               strokeWidth={3}
                               fill="url(#colorValue)"
-                              name="Value"
+                              name={`Value (${selectedTrend.unit})`}
                               dot={{ 
                                 fill: 'var(--primary-500)', 
                                 strokeWidth: 2, 

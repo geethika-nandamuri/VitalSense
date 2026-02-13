@@ -16,6 +16,23 @@ const userSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  role: {
+    type: String,
+    enum: ['PATIENT', 'DOCTOR'],
+    required: true,
+    default: 'PATIENT'
+  },
+  patientId: {
+    type: String,
+    unique: true,
+    sparse: true,
+    index: true
+  },
+  doctorProfile: {
+    specialization: String,
+    hospital: String,
+    experienceYears: Number
+  },
   preferences: {
     diet: {
       type: String,
@@ -37,5 +54,15 @@ const userSchema = new mongoose.Schema({
 }, {
   timestamps: true
 });
+
+// Generate unique patient ID
+userSchema.statics.generatePatientId = function() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let id = 'VS-PAT-';
+  for (let i = 0; i < 8; i++) {
+    id += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return id;
+};
 
 module.exports = mongoose.model('User', userSchema);

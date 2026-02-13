@@ -36,11 +36,12 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const login = async (email, password) => {
+  const login = async (email, password, role = 'PATIENT') => {
     try {
       setError('');
       setLoading(true);
-      const response = await axios.post('/api/auth/login', { email, password });
+      const endpoint = role === 'DOCTOR' ? '/api/auth/doctor/login' : '/api/auth/patient/login';
+      const response = await axios.post(endpoint, { email, password });
       const { token, user } = response.data;
       
       localStorage.setItem('token', token);
@@ -56,11 +57,12 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const signup = async (name, email, password) => {
+  const signup = async (name, email, password, role = 'PATIENT', additionalData = {}) => {
     try {
       setError('');
       setLoading(true);
-      const response = await axios.post('/api/auth/register', { name, email, password });
+      const endpoint = role === 'DOCTOR' ? '/api/auth/doctor/signup' : '/api/auth/patient/signup';
+      const response = await axios.post(endpoint, { name, email, password, ...additionalData });
       const { token, user } = response.data;
       
       localStorage.setItem('token', token);

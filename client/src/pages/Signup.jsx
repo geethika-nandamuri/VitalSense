@@ -9,7 +9,9 @@ import {
   Paper,
   Divider,
   IconButton,
-  InputAdornment
+  InputAdornment,
+  ToggleButton,
+  ToggleButtonGroup
 } from '@mui/material';
 import { Visibility, VisibilityOff, Email, Lock, Person } from '@mui/icons-material';
 import Button from '../components/ui/Button';
@@ -20,8 +22,11 @@ const Signup = () => {
     name: '',
     email: '',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    specialization: '',
+    hospital: ''
   });
+  const [role, setRole] = useState('PATIENT');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [errors, setErrors] = useState({});
@@ -67,10 +72,15 @@ const Signup = () => {
     if (!validateForm()) return;
     
     setIsLoading(true);
-    const result = await signup(formData.name.trim(), formData.email, formData.password);
+    const additionalData = role === 'DOCTOR' ? {
+      specialization: formData.specialization,
+      hospital: formData.hospital
+    } : {};
+    
+    const result = await signup(formData.name.trim(), formData.email, formData.password, role, additionalData);
     
     if (result.success) {
-      navigate('/dashboard');
+      navigate(role === 'DOCTOR' ? '/doctor/dashboard' : '/patient/dashboard');
     }
     setIsLoading(false);
   };
@@ -126,9 +136,23 @@ const Signup = () => {
             >
               Create Account
             </Typography>
-            <Typography variant="body1" color="text.secondary">
+            <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
               Join VitalSense to track your health journey
             </Typography>
+            
+            <ToggleButtonGroup
+              value={role}
+              exclusive
+              onChange={(e, newRole) => newRole && setRole(newRole)}
+              sx={{ mb: 2 }}
+            >
+              <ToggleButton value="PATIENT" sx={{ px: 4 }}>
+                Patient Signup
+              </ToggleButton>
+              <ToggleButton value="DOCTOR" sx={{ px: 4 }}>
+                Doctor Signup
+              </ToggleButton>
+            </ToggleButtonGroup>
           </Box>
 
           {error && (
@@ -228,6 +252,25 @@ const Signup = () => {
                 ),
               }}
             />
+
+            {role === 'DOCTOR' && (
+              <>
+                <Input
+                  name="specialization"
+                  label="Specialization (Optional)"
+                  value={formData.specialization}
+                  onChange={handleChange}
+                  sx={{ mb: 2 }}
+                />
+                <Input
+                  name="hospital"
+                  label="Hospital/Clinic (Optional)"
+                  value={formData.hospital}
+                  onChange={handleChange}
+                  sx={{ mb: 3 }}
+                />
+              </>
+            )}
 
             <Button
               type="submit"
