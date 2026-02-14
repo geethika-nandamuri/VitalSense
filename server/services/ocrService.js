@@ -1,7 +1,8 @@
 const { getGeminiVisionModel } = require('../config/gemini');
 const fs = require('fs').promises;
 const path = require('path');
-const pdf = require('pdf-poppler');
+// Using pdf2pic instead of pdf-poppler for Linux compatibility
+const pdf2pic = require('pdf2pic');
 
 /**
  * Extract biomarkers from an image file (JPEG/PNG).
@@ -107,25 +108,25 @@ const convertPdfToImages = async (pdfPath) => {
     // Create output directory if it doesn't exist
     await fs.mkdir(outputDir, { recursive: true });
     
-    const options = {
-      format: 'png',
-      out_dir: outputDir,
-      out_prefix: 'page',
-      page: null // Convert all pages
-    };
+    // Configure pdf2pic for Linux compatibility
+    const convert = pdf2pic.fromPath(pdfPath, {
+      density: 100,           // Output resolution
+      saveFilename: 'page',   // Output filename prefix
+      savePath: outputDir,    // Output directory
+      format: 'png',          // Output format
+      width: 2048,            // Max width
+      height: 2048            // Max height
+    });
     
-    await pdf.convert(pdfPath, options);
+    // Convert all pages
+    const results = await convert.bulk(-1, { responseType: 'image' });
     
-    // Get list of generated image files
-    const files = await fs.readdir(outputDir);
-    const imageFiles = files
-      .filter(file => file.endsWith('.png'))
-      .sort()
-      .map(file => path.join(outputDir, file));
-    
-    if (imageFiles.length === 0) {
+    if (!results || results.length === 0) {
       throw new Error('No images generated from PDF');
     }
+    
+    // Return array of image file paths
+    const imageFiles = results.map(result => result.path);
     
     return imageFiles;
   } catch (error) {
