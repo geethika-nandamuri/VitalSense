@@ -13,14 +13,15 @@ import {
   ToggleButton,
   ToggleButtonGroup
 } from '@mui/material';
-import { Visibility, VisibilityOff, Email, Lock } from '@mui/icons-material';
+import { Visibility, VisibilityOff, Email, Lock, Phone } from '@mui/icons-material';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 
 const Login = () => {
   const [formData, setFormData] = useState({
     email: '',
-    password: ''
+    password: '',
+    phoneNumber: ''
   });
   const [role, setRole] = useState('PATIENT');
   const [showPassword, setShowPassword] = useState(false);
@@ -48,6 +49,12 @@ const Login = () => {
       newErrors.password = 'Password must be at least 6 characters';
     }
     
+    if (!formData.phoneNumber) {
+      newErrors.phoneNumber = 'Phone number is required';
+    } else if (!/^\d{10}$/.test(formData.phoneNumber)) {
+      newErrors.phoneNumber = 'Enter a valid 10-digit phone number';
+    }
+    
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -58,7 +65,7 @@ const Login = () => {
     if (!validateForm()) return;
     
     setIsLoading(true);
-    const result = await login(formData.email, formData.password, role);
+    const result = await login(formData.email, formData.password, role, formData.phoneNumber);
     
     if (result.success) {
       navigate(from, { replace: true });
@@ -169,7 +176,7 @@ const Login = () => {
               onChange={handleChange}
               error={!!errors.password}
               helperText={errors.password}
-              sx={{ mb: 3 }}
+              sx={{ mb: 2 }}
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
@@ -189,11 +196,31 @@ const Login = () => {
               }}
             />
 
+            <Input
+              name="phoneNumber"
+              label="Phone Number"
+              type="tel"
+              placeholder="Enter your phone number"
+              value={formData.phoneNumber}
+              onChange={handleChange}
+              error={!!errors.phoneNumber}
+              helperText={errors.phoneNumber}
+              sx={{ mb: 3 }}
+              inputProps={{ maxLength: 10 }}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <Phone color="action" />
+                  </InputAdornment>
+                ),
+              }}
+            />
+
             <Button
               type="submit"
               fullWidth
               variant="contained"
-              disabled={isLoading}
+              disabled={isLoading || !formData.email || !formData.password || !formData.phoneNumber}
               sx={{ mb: 3, py: 1.5 }}
             >
               {isLoading ? 'Signing In...' : 'Sign In'}

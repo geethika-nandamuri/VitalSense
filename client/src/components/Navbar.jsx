@@ -63,6 +63,7 @@ const Navbar = () => {
 
   const navigationItems = user?.role === 'DOCTOR' ? [
     { text: 'Dashboard', path: '/doctor/dashboard', icon: <Dashboard /> },
+    { text: 'Appointments', path: '/doctor/appointments', icon: <CalendarToday /> },
   ] : [
     { text: 'Dashboard', path: '/patient/dashboard', icon: <Dashboard /> },
     { text: 'Upload Report', path: '/upload', icon: <Upload /> },

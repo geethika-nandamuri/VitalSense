@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Container,
   Typography,
@@ -27,70 +27,16 @@ import {
   LocationCity,
   LocalHospital
 } from '@mui/icons-material';
-
-// ===== CONFIGURATION =====
-const SLOT_DURATION_MIN = 30;
-const MAX_PATIENTS_PER_SLOT = 5; // Hospital requirement (can be changed to 4 or other value)
+import { useAuth } from '../context/AuthContext';
+import { addAppointment, getAppointmentsByPatient } from '../services/appointmentsStore';
+import { getDoctors, getCities, getHospitals, getSpecializations, getDoctorsByFilters } from '../services/doctorsStore';
 
 const PatientAppointments = () => {
-  // Sample appointment data structure
-  const appointmentData = [
-    {
-      city: 'Tadepalligudem',
-      hospitals: [
-        {
-          name: 'Sri Sai Multi Speciality Hospital',
-          specializations: [
-            {
-              name: 'Cardiology',
-              problemHint: 'Heart pain, BP, Cholesterol, ECG',
-              doctors: [
-                { id: 'd1', name: 'Dr. Anil Kumar' },
-                { id: 'd4', name: 'Dr. Meena Reddy' }
-              ]
-            },
-            {
-              name: 'General Medicine',
-              problemHint: 'Fever, Cold, Body pains, General checkup',
-              doctors: [
-                { id: 'd3', name: 'Dr. Naveen Rao' }
-              ]
-            }
-          ]
-        },
-        {
-          name: 'City Care Clinic',
-          specializations: [
-            {
-              name: 'Endocrinology',
-              problemHint: 'Diabetes, Thyroid, Hormones',
-              doctors: [
-                { id: 'd2', name: 'Dr. Priya Sharma' }
-              ]
-            }
-          ]
-        }
-      ]
-    },
-    {
-      city: 'Bhimavaram',
-      hospitals: [
-        {
-          name: 'Apollo Health Center',
-          specializations: [
-            {
-              name: 'Dermatology',
-              problemHint: 'Skin allergy, Acne, Hair fall',
-              doctors: [
-                { id: 'd5', name: 'Dr. Rahul Verma' }
-              ]
-            }
-          ]
-        }
-      ]
-    }
-  ];
-
+  const { user } = useAuth();
+  
+  // Load registered doctors
+  const registeredDoctors = useMemo(() => getDoctors().filter(d => d.isActive), []);
+  
   // Time slots (09:00 to 17:00, 30-minute intervals)
   const timeSlots = [];
   for (let h = 9; h <= 17; h++) {
@@ -116,21 +62,13 @@ const PatientAppointments = () => {
 
   const [slotBookings, setSlotBookings] = useState(initialSlotBookings);
 
-  // My appointments state - initial sample appointment
-  const [myAppointments, setMyAppointments] = useState([
-    {
-      id: 1,
-      city: 'Tadepalligudem',
-      hospital: 'City Care Clinic',
-      specialization: 'Endocrinology',
-      specializationHint: 'Diabetes, Thyroid, Hormones',
-      doctorId: 'd2',
-      doctorName: 'Dr. Priya Sharma',
-      date: '2026-02-20',
-      time: '10:00',
-      status: 'Confirmed'
+  // My appointments state - load from store
+  const [myAppointments, setMyAppointments] = useState(() => {
+    if (user && user._id) {
+      return getAppointmentsByPatient(user._id);
     }
-  ]);
+    return [];
+  });
 
   // Tab state
   const [activeTab, setActiveTab] = useState(0);
@@ -145,40 +83,40 @@ const PatientAppointments = () => {
   const [availabilityStatus, setAvailabilityStatus] = useState(null);
   const [showToast, setShowToast] = useState(false);
 
-  // Get available options based on selections
-  const getCities = () => appointmentData.map(item => item.city);
-
-  const getHospitals = () => {
+  // Get available options based on selections using useMemo
+  const cities = useMemo(() => getCities(), []);
+  
+  const hospitals = useMemo(() => {
     if (!selectedCity) return [];
-    const cityData = appointmentData.find(item => item.city === selectedCity);
-    return cityData ? cityData.hospitals.map(h => h.name) : [];
-  };
-
-  const getSpecializations = () => {
+    return getHospitals(selectedCity);
+  }, [selectedCity]);
+  
+  const specializations = useMemo(() => {
     if (!selectedCity || !selectedHospital) return [];
-    const cityData = appointmentData.find(item => item.city === selectedCity);
-    const hospitalData = cityData?.hospitals.find(h => h.name === selectedHospital);
-    return hospitalData ? hospitalData.specializations : [];
-  };
-
-  const getDoctors = () => {
+    return getSpecializations(selectedCity, selectedHospital);
+  }, [selectedCity, selectedHospital]);
+  
+  const doctorsFiltered = useMemo(() => {
     if (!selectedCity || !selectedHospital || !selectedSpecialization) return [];
-    const cityData = appointmentData.find(item => item.city === selectedCity);
-    const hospitalData = cityData?.hospitals.find(h => h.name === selectedHospital);
-    const specializationData = hospitalData?.specializations.find(s => s.name === selectedSpecialization);
-    return specializationData ? specializationData.doctors : [];
-  };
+    return getDoctorsByFilters(selectedCity, selectedHospital, selectedSpecialization);
+  }, [selectedCity, selectedHospital, selectedSpecialization]);
+  
+  const selectedDoctorProfile = useMemo(() => {
+    return doctorsFiltered.find(d => d.doctorId === selectedDoctor);
+  }, [doctorsFiltered, selectedDoctor]);
 
   // Check doctor availability based on capacity
-  // Backend-ready: This logic should be on server side for real-time accuracy
   const checkDoctorAvailability = (doctorId, date, time) => {
     if (!doctorId || !date || !time) return null;
+    const doctor = doctorsFiltered.find(d => d.doctorId === doctorId);
+    const maxSlots = doctor?.maxPatientsPerSlot || 5;
     const currentCount = slotBookings[doctorId]?.[date]?.[time] ?? 0;
-    const remaining = MAX_PATIENTS_PER_SLOT - currentCount;
+    const remaining = maxSlots - currentCount;
     return {
       isAvailable: remaining > 0,
       remaining: remaining,
-      currentCount: currentCount
+      currentCount: currentCount,
+      maxSlots: maxSlots
     };
   };
 
@@ -234,22 +172,17 @@ const PatientAppointments = () => {
   };
 
   // Book appointment with capacity increment
-  // Backend-ready: Should call POST /api/appointments which atomically increments count
   const handleBookAppointment = () => {
-    const doctors = getDoctors();
-    const doctor = doctors.find(d => d.id === selectedDoctor);
-    const specializations = getSpecializations();
-    const specializationData = specializations.find(s => s.name === selectedSpecialization);
+    if (!selectedDoctorProfile) return;
     
-    // Safety check: Prevent overbooking
+    const maxSlots = selectedDoctorProfile.maxPatientsPerSlot;
     const currentCount = slotBookings[selectedDoctor]?.[selectedDate]?.[selectedTime] ?? 0;
-    if (currentCount >= MAX_PATIENTS_PER_SLOT) {
+    if (currentCount >= maxSlots) {
       alert('Slot already full, please choose another time');
       return;
     }
     
-    // Update slot bookings (increment count)
-    // Backend-ready: This should be handled by server atomically
+    // Update slot bookings
     setSlotBookings(prev => ({
       ...prev,
       [selectedDoctor]: {
@@ -261,19 +194,24 @@ const PatientAppointments = () => {
       }
     }));
 
-    // Add to my appointments
-    const newAppointment = {
-      id: Date.now(),
+    // Create appointment object
+    const appointmentData = {
+      doctorId: selectedDoctor,
+      doctorName: selectedDoctorProfile.name,
+      patientId: user?._id || 'p101',
+      patientName: user?.name || 'Geethika',
+      patientAge: user?.age || 20,
+      patientGender: user?.gender || 'F',
+      patientPhone: user?.phone || user?.phoneNumber || '9XXXXXXXXX',
       city: selectedCity,
       hospital: selectedHospital,
       specialization: selectedSpecialization,
-      specializationHint: specializationData?.problemHint || '',
-      doctorId: selectedDoctor,
-      doctorName: doctor.name,
       date: selectedDate,
       time: selectedTime,
       status: 'Confirmed'
     };
+
+    const newAppointment = addAppointment(appointmentData);
     setMyAppointments(prev => [...prev, newAppointment]);
 
     // Reset form
@@ -294,10 +232,12 @@ const PatientAppointments = () => {
   // Get slot capacity info for display
   const getSlotCapacityInfo = (time) => {
     if (!selectedDoctor || !selectedDate) return '';
+    const doctor = doctorsFiltered.find(d => d.doctorId === selectedDoctor);
+    const maxSlots = doctor?.maxPatientsPerSlot || 5;
     const currentCount = slotBookings[selectedDoctor]?.[selectedDate]?.[time] ?? 0;
-    const remaining = MAX_PATIENTS_PER_SLOT - currentCount;
+    const remaining = maxSlots - currentCount;
     if (remaining === 0) return ' (FULL)';
-    return ` (${currentCount}/${MAX_PATIENTS_PER_SLOT} booked)`;
+    return ` (${currentCount}/${maxSlots} booked)`;
   };
 
   const formatDate = (dateStr) => {
@@ -346,7 +286,6 @@ const PatientAppointments = () => {
               </Typography>
               
               <Grid container spacing={3}>
-                {/* City */}
                 <Grid item xs={12} md={4}>
                   <FormControl fullWidth>
                     <InputLabel>Select City</InputLabel>
@@ -356,7 +295,7 @@ const PatientAppointments = () => {
                       label="Select City"
                       sx={{ borderRadius: 'var(--radius-lg)' }}
                     >
-                      {getCities().map(city => (
+                      {cities.map(city => (
                         <MenuItem key={city} value={city}>{city}</MenuItem>
                       ))}
                     </Select>
@@ -373,7 +312,7 @@ const PatientAppointments = () => {
                       label="Select Hospital"
                       sx={{ borderRadius: 'var(--radius-lg)' }}
                     >
-                      {getHospitals().map(hospital => (
+                      {hospitals.map(hospital => (
                         <MenuItem key={hospital} value={hospital}>{hospital}</MenuItem>
                       ))}
                     </Select>
@@ -390,18 +329,11 @@ const PatientAppointments = () => {
                       label="Select Specialization"
                       sx={{ borderRadius: 'var(--radius-lg)' }}
                     >
-                      {getSpecializations().map(spec => (
-                        <MenuItem key={spec.name} value={spec.name}>
-                          {spec.name} ({spec.problemHint})
-                        </MenuItem>
+                      {specializations.map(spec => (
+                        <MenuItem key={spec} value={spec}>{spec}</MenuItem>
                       ))}
                     </Select>
                   </FormControl>
-                  {selectedHospital && (
-                    <Typography variant="caption" sx={{ color: 'var(--gray-500)', mt: 0.5, display: 'block', fontStyle: 'italic' }}>
-                      💡 Tip: Choose based on your health problem (e.g., chest pain → Cardiology)
-                    </Typography>
-                  )}
                 </Grid>
 
                 {/* Doctor */}
@@ -414,11 +346,19 @@ const PatientAppointments = () => {
                       label="Select Doctor"
                       sx={{ borderRadius: 'var(--radius-lg)' }}
                     >
-                      {getDoctors().map(doctor => (
-                        <MenuItem key={doctor.id} value={doctor.id}>{doctor.name}</MenuItem>
+                      {doctorsFiltered.map(doctor => (
+                        <MenuItem key={doctor.doctorId} value={doctor.doctorId}>
+                          {doctor.name}
+                          {doctor.experienceYears > 0 && ` (${doctor.experienceYears} yrs exp)`}
+                        </MenuItem>
                       ))}
                     </Select>
                   </FormControl>
+                  {selectedDoctorProfile && (
+                    <Typography variant="caption" sx={{ color: 'var(--gray-500)', mt: 0.5, display: 'block' }}>
+                      Capacity: {selectedDoctorProfile.maxPatientsPerSlot} patients per {selectedDoctorProfile.slotDurationMin} min
+                    </Typography>
+                  )}
                 </Grid>
 
                 {/* Date */}

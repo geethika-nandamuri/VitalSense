@@ -13,7 +13,7 @@ import {
   ToggleButton,
   ToggleButtonGroup
 } from '@mui/material';
-import { Visibility, VisibilityOff, Email, Lock, Person } from '@mui/icons-material';
+import { Visibility, VisibilityOff, Email, Lock, Person, Phone } from '@mui/icons-material';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 
@@ -23,6 +23,7 @@ const Signup = () => {
     email: '',
     password: '',
     confirmPassword: '',
+    phoneNumber: '',
     specialization: '',
     hospital: ''
   });
@@ -50,6 +51,12 @@ const Signup = () => {
       newErrors.email = 'Email is invalid';
     }
     
+    if (!formData.phoneNumber) {
+      newErrors.phoneNumber = 'Phone number is required';
+    } else if (!/^\d{10}$/.test(formData.phoneNumber)) {
+      newErrors.phoneNumber = 'Enter a valid 10-digit phone number';
+    }
+    
     if (!formData.password) {
       newErrors.password = 'Password is required';
     } else if (formData.password.length < 6) {
@@ -72,10 +79,13 @@ const Signup = () => {
     if (!validateForm()) return;
     
     setIsLoading(true);
-    const additionalData = role === 'DOCTOR' ? {
-      specialization: formData.specialization,
-      hospital: formData.hospital
-    } : {};
+    const additionalData = {
+      phoneNumber: formData.phoneNumber,
+      ...(role === 'DOCTOR' ? {
+        specialization: formData.specialization,
+        hospital: formData.hospital
+      } : {})
+    };
     
     const result = await signup(formData.name.trim(), formData.email, formData.password, role, additionalData);
     
@@ -198,6 +208,26 @@ const Signup = () => {
             />
 
             <Input
+              name="phoneNumber"
+              label="Phone Number"
+              type="tel"
+              placeholder="Enter 10-digit phone number"
+              value={formData.phoneNumber}
+              onChange={handleChange}
+              error={!!errors.phoneNumber}
+              helperText={errors.phoneNumber}
+              sx={{ mb: 2 }}
+              inputProps={{ maxLength: 10 }}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <Phone color="action" />
+                  </InputAdornment>
+                ),
+              }}
+            />
+
+            <Input
               name="password"
               label="Password"
               type={showPassword ? 'text' : 'password'}
@@ -276,7 +306,7 @@ const Signup = () => {
               type="submit"
               fullWidth
               variant="contained"
-              disabled={isLoading}
+              disabled={isLoading || !formData.name || !formData.email || !formData.phoneNumber || !formData.password || !formData.confirmPassword}
               sx={{ mb: 3, py: 1.5 }}
             >
               {isLoading ? 'Creating Account...' : 'Create Account'}
