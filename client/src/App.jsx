@@ -10,6 +10,7 @@ import Signup from './pages/Signup';
 import Dashboard from './pages/Dashboard';
 import PatientDashboard from './pages/PatientDashboard';
 import DoctorDashboard from './pages/DoctorDashboard';
+import DoctorAppointments from './pages/DoctorAppointments';
 import UploadReport from './pages/UploadReport';
 import Reports from './pages/Reports';
 import PatientAppointments from './components/PatientAppointments';
@@ -120,6 +121,14 @@ const AppContent = () => {
           element={
             <RoleRoute allowedRoles={['DOCTOR']}>
               <DoctorDashboard />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="/doctor/appointments"
+          element={
+            <RoleRoute allowedRoles={['DOCTOR']}>
+              <DoctorAppointments />
             </RoleRoute>
           }
         />

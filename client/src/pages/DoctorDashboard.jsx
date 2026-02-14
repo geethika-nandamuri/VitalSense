@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import {
   Container,
@@ -21,8 +21,13 @@ import {
 import { Search, Person, CalendarToday, TrendingUp, ShowChart, Summarize } from '@mui/icons-material';
 import Button from '../components/ui/Button';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { useAuth } from '../context/AuthContext';
+import { getDoctorById, upsertDoctor } from '../services/doctorsStore';
+import DoctorProfileCompletion from '../components/DoctorProfileCompletion';
 
 const DoctorDashboard = () => {
+  const { user } = useAuth();
+  const [showProfileCompletion, setShowProfileCompletion] = useState(false);
   const [patientId, setPatientId] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -32,6 +37,21 @@ const DoctorDashboard = () => {
   const [selectedTrend, setSelectedTrend] = useState(null);
   const [summary, setSummary] = useState(null);
   const [loadingSummary, setLoadingSummary] = useState(false);
+
+  useEffect(() => {
+    // Check if doctor profile is complete
+    if (user && user.role === 'DOCTOR') {
+      const doctorProfile = getDoctorById(user._id);
+      if (!doctorProfile) {
+        setShowProfileCompletion(true);
+      }
+    }
+  }, [user]);
+
+  const handleProfileComplete = (doctorProfile) => {
+    upsertDoctor(doctorProfile);
+    setShowProfileCompletion(false);
+  };
 
   const handleSearch = async () => {
     if (!patientId.trim()) {
@@ -183,7 +203,14 @@ const DoctorDashboard = () => {
   const chartData = prepareChartData();
 
   return (
-    <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
+    <>
+      <DoctorProfileCompletion
+        open={showProfileCompletion}
+        doctorData={user}
+        onComplete={handleProfileComplete}
+      />
+      
+      <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
       <Paper
         elevation={0}
         sx={{
@@ -441,7 +468,8 @@ const DoctorDashboard = () => {
           )}
         </>
       )}
-    </Container>
+      </Container>
+    </>
   );
 };
 
