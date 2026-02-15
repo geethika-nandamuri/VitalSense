@@ -4,12 +4,9 @@ import axios from "axios";
 import "./index.css";
 import App from "./App.jsx";
 
-// ✅ Set backend base URL
 axios.defaults.baseURL = import.meta.env.VITE_API_URL;
-
-// ✅ Prevent sending "Bearer undefined"
 axios.interceptors.request.use((config) => {
-  const token = localStorage.getItem("token"); // make sure this key matches your login storage
+  const token = localStorage.getItem("token");
 
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
@@ -19,6 +16,21 @@ axios.interceptors.request.use((config) => {
 
   return config;
 });
+
+axios.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('userPhone');
+      localStorage.removeItem('user');
+      if (window.location.pathname !== '/login' && window.location.pathname !== '/signup') {
+        window.location.href = '/login';
+      }
+    }
+    return Promise.reject(error);
+  }
+);
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>

@@ -28,6 +28,7 @@ import DoctorProfileCompletion from '../components/DoctorProfileCompletion';
 const DoctorDashboard = () => {
   const { user } = useAuth();
   const [showProfileCompletion, setShowProfileCompletion] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(true);
   const [patientId, setPatientId] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -39,12 +40,14 @@ const DoctorDashboard = () => {
   const [loadingSummary, setLoadingSummary] = useState(false);
 
   useEffect(() => {
-    // Check if doctor profile is complete
     if (user && user.role === 'DOCTOR') {
       const doctorProfile = getDoctorById(user._id);
+      setProfileLoading(false);
       if (!doctorProfile) {
         setShowProfileCompletion(true);
       }
+    } else {
+      setProfileLoading(false);
     }
   }, [user]);
 
