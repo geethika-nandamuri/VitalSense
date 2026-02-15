@@ -20,7 +20,7 @@ import {
   Error,
   Close
 } from '@mui/icons-material';
-import axios from 'axios';
+import api from '../utils/api';
 import ExtractedBiomarkersView from '../components/ExtractedBiomarkersView';
 
 const Reports = () => {
@@ -35,7 +35,7 @@ const Reports = () => {
 
   const fetchReports = async () => {
     try {
-      const response = await axios.get('/api/reports');
+      const response = await api.get('/api/reports');
       setReports(response.data.reports || []);
     } catch (error) {
       console.error('Error fetching reports:', error);
@@ -50,7 +50,7 @@ const Reports = () => {
 
   const handleDeleteConfirm = async () => {
     try {
-      await axios.delete(`/api/reports/${deleteDialog.report._id}`);
+      await api.delete(`/api/reports/${deleteDialog.report._id}`);
       setReports(reports.filter(r => r._id !== deleteDialog.report._id));
       setDeleteDialog({ open: false, report: null });
     } catch (error) {

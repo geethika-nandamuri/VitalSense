@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../utils/api';
 import {
   Container,
   Box,
@@ -69,8 +69,8 @@ const DoctorDashboard = () => {
 
     try {
       const [reportsRes, trendsRes] = await Promise.all([
-        axios.get(`/api/doctor/patient/${patientId}/reports`),
-        axios.get(`/api/doctor/patient/${patientId}/trends`)
+        api.get(`/api/doctor/patient/${patientId}/reports`),
+        api.get(`/api/doctor/patient/${patientId}/trends`)
       ]);
 
       setPatientData(reportsRes.data.patient);
@@ -191,7 +191,7 @@ const DoctorDashboard = () => {
     
     setLoadingSummary(true);
     try {
-      const response = await axios.get(`/api/summary?userId=${patientData.id}`);
+      const response = await api.get(`/api/summary?userId=${patientData.id}`);
       setSummary(response.data);
     } catch (err) {
       console.error('Failed to generate summary:', err);

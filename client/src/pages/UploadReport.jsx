@@ -19,8 +19,8 @@ import {
   Error,
   Analytics
 } from '@mui/icons-material';
-import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import api from '../utils/api';
 import ExtractedBiomarkersView from '../components/ExtractedBiomarkersView';
 
 const UploadReport = () => {
@@ -73,7 +73,7 @@ const UploadReport = () => {
         });
       }, 200);
 
-      const response = await axios.post('/api/reports/upload', formData, {
+      const response = await api.post('/api/reports/upload', formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
         }

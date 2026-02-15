@@ -11,7 +11,7 @@ import {
   Divider
 } from '@mui/material';
 import { ContentCopy, Person } from '@mui/icons-material';
-import axios from 'axios';
+import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 
 const Profile = () => {
@@ -27,7 +27,7 @@ const Profile = () => {
 
   const fetchProfile = async () => {
     try {
-      const response = await axios.get('/api/patient/profile');
+      const response = await api.get('/api/patient/profile');
       if (response.data.success) {
         setProfile(response.data.data);
       }

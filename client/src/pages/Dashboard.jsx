@@ -15,7 +15,7 @@ import {
   Timeline,
   Analytics
 } from '@mui/icons-material';
-import axios from 'axios';
+import api from '../utils/api';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
@@ -36,8 +36,8 @@ const Dashboard = () => {
   const fetchDashboardData = async () => {
     try {
       const [reportsRes, biomarkersRes] = await Promise.all([
-        axios.get('/api/reports'),
-        axios.get('/api/biomarkers/latest')
+        api.get('/api/reports'),
+        api.get('/api/biomarkers/latest')
       ]);
 
       const reports = reportsRes.data.reports || [];
