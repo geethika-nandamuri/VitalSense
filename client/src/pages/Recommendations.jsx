@@ -14,7 +14,7 @@ import {
   AccordionDetails
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import axios from 'axios';
+import api from '../utils/api';
 
 const Recommendations = () => {
   const [recommendations, setRecommendations] = useState([]);
@@ -26,7 +26,7 @@ const Recommendations = () => {
 
   const fetchRecommendations = async () => {
     try {
-      const response = await axios.get('/api/recommendations');
+      const response = await api.get('/api/recommendations');
       setRecommendations(response.data.recommendations || []);
     } catch (error) {
       console.error('Error fetching recommendations:', error);

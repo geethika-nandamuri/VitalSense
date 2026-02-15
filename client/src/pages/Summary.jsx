@@ -12,7 +12,7 @@ import {
   ListItemText,
   Chip
 } from '@mui/material';
-import axios from 'axios';
+import api from '../utils/api';
 
 const Summary = () => {
   const [summary, setSummary] = useState(null);
@@ -21,7 +21,7 @@ const Summary = () => {
   const fetchSummary = async () => {
     setLoading(true);
     try {
-      const response = await axios.get('/api/summary');
+      const response = await api.get('/api/summary');
       setSummary(response.data);
     } catch (error) {
       console.error('Error fetching summary:', error);

@@ -32,7 +32,7 @@ import {
   Science,
   Analytics
 } from '@mui/icons-material';
-import axios from 'axios';
+import api from '../utils/api';
 
 const Biomarkers = () => {
   const [biomarkers, setBiomarkers] = useState([]);
@@ -60,7 +60,7 @@ const Biomarkers = () => {
 
   const fetchBiomarkers = async () => {
     try {
-      const response = await axios.get('/api/biomarkers');
+      const response = await api.get('/api/biomarkers');
       setBiomarkers(response.data.biomarkers || []);
       setFiltered(response.data.biomarkers || []);
     } catch (error) {
@@ -76,7 +76,7 @@ const Biomarkers = () => {
     setExplanation(null);
 
     try {
-      const response = await axios.get(`/api/biomarkers/${encodeURIComponent(testName)}/explanation`);
+      const response = await api.get(`/api/biomarkers/${encodeURIComponent(testName)}/explanation`);
       setExplanation(response.data);
     } catch (error) {
       console.error('Error fetching explanation:', error);

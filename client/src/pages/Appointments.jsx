@@ -29,7 +29,7 @@ import {
   CalendarToday,
   AccessTime
 } from '@mui/icons-material';
-import axios from 'axios';
+import api from '../utils/api';
 
 const Appointments = () => {
   const [activeTab, setActiveTab] = useState(0);
@@ -64,7 +64,7 @@ const Appointments = () => {
 
   const fetchHospitals = async () => {
     try {
-      const response = await axios.get('/api/hospitals');
+      const response = await api.get('/api/hospitals');
       setHospitals(response.data.data || []);
     } catch (error) {
       console.error('Error fetching hospitals:', error);
@@ -79,7 +79,7 @@ const Appointments = () => {
       if (filters.hospitalId) params.append('hospitalId', filters.hospitalId);
       if (filters.specialization) params.append('specialization', filters.specialization);
       
-      const response = await axios.get(`/api/doctors?${params}`);
+      const response = await api.get(`/api/doctors?${params}`);
       setDoctors(response.data.data || []);
     } catch (error) {
       console.error('Error fetching doctors:', error);
@@ -90,7 +90,7 @@ const Appointments = () => {
 
   const fetchMyAppointments = async () => {
     try {
-      const response = await axios.get('/api/appointments/my', {
+      const response = await api.get('/api/appointments/my', {
         headers: { 'x-patient-id': 'demo-patient-123' } // Demo header
       });
       setMyAppointments(response.data.data);
@@ -113,7 +113,7 @@ const Appointments = () => {
     try {
       const { doctor, date, timeSlot, reason } = bookingDialog;
       
-      await axios.post('/api/appointments', {
+      await api.post('/api/appointments', {
         doctorId: doctor._id,
         hospitalId: doctor.hospitalId._id,
         date,
@@ -136,7 +136,7 @@ const Appointments = () => {
 
   const cancelAppointment = async (appointmentId) => {
     try {
-      await axios.patch(`/api/appointments/${appointmentId}/cancel`, {}, {
+      await api.patch(`/api/appointments/${appointmentId}/cancel`, {}, {
         headers: { 'x-patient-id': 'demo-patient-123' } // Demo header
       });
       

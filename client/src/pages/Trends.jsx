@@ -37,7 +37,7 @@ import {
   Assessment,
   ShowChart
 } from '@mui/icons-material';
-import axios from 'axios';
+import api from '../utils/api';
 
 // Premium Metric Card Component
 const MetricCard = ({ title, value, icon, trend, loading = false, delay = 0 }) => {
@@ -218,7 +218,7 @@ const Trends = () => {
 
   const fetchTrends = async () => {
     try {
-      const response = await axios.get('/api/patient/trends');
+      const response = await api.get('/api/patient/trends');
       const trendsData = response.data.trends || [];
       setTrends(trendsData);
       if (trendsData.length > 0) {
