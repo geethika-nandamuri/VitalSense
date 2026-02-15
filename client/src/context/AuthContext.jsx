@@ -12,7 +12,14 @@ export const useAuth = () => {
 };
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(() => {
+    try {
+      const storedUser = localStorage.getItem('user');
+      return storedUser ? JSON.parse(storedUser) : null;
+    } catch {
+      return null;
+    }
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -26,11 +33,15 @@ export const AuthProvider = ({ children }) => {
       if (token) {
         const response = await api.get('/api/auth/me');
         const userPhone = localStorage.getItem('userPhone');
-        setUser({ ...response.data.user, phoneNumber: userPhone });
+        const userData = { ...response.data.user, phoneNumber: userPhone };
+        setUser(userData);
+        localStorage.setItem('user', JSON.stringify(userData));
       }
     } catch (error) {
       localStorage.removeItem('token');
       localStorage.removeItem('userPhone');
+      localStorage.removeItem('user');
+      setUser(null);
     } finally {
       setLoading(false);
     }
@@ -44,11 +55,11 @@ export const AuthProvider = ({ children }) => {
       const response = await api.post(endpoint, { email, password, phoneNumber });
       const { token, user } = response.data;
       
-      // Store phone number in user object
       const userWithPhone = { ...user, phoneNumber };
       
       localStorage.setItem('token', token);
       localStorage.setItem('userPhone', phoneNumber);
+      localStorage.setItem('user', JSON.stringify(userWithPhone));
       setUser(userWithPhone);
       return { success: true };
     } catch (error) {
@@ -68,11 +79,11 @@ export const AuthProvider = ({ children }) => {
       const response = await api.post(endpoint, { name, email, password, ...additionalData });
       const { token, user } = response.data;
       
-      // Store phone number in user object
       const userWithPhone = { ...user, phoneNumber: additionalData.phoneNumber };
       
       localStorage.setItem('token', token);
       localStorage.setItem('userPhone', additionalData.phoneNumber || '');
+      localStorage.setItem('user', JSON.stringify(userWithPhone));
       setUser(userWithPhone);
       return { success: true };
     } catch (error) {
@@ -87,6 +98,7 @@ export const AuthProvider = ({ children }) => {
   const logout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('userPhone');
+    localStorage.removeItem('user');
     setUser(null);
     setError('');
   };
