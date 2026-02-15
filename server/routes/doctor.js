@@ -6,6 +6,144 @@ const { buildTrendsFromUserId } = require('../services/trendService');
 
 const router = express.Router();
 
+// Get all registered doctors (public endpoint for appointment booking)
+router.get('/list', async (req, res) => {
+  try {
+    const { city, hospitalName, specialization } = req.query;
+    
+    const query = { role: 'DOCTOR', 'doctorProfile.specialization': { $exists: true, $ne: null } };
+    
+    if (city) query['doctorProfile.city'] = city;
+    if (hospitalName) query['doctorProfile.hospitalName'] = hospitalName;
+    if (specialization) query['doctorProfile.specialization'] = specialization;
+    
+    const doctors = await User.find(query).select('name doctorId doctorProfile');
+    
+    const formattedDoctors = doctors.map(doc => ({
+      _id: doc._id,
+      doctorId: doc.doctorId,
+      name: doc.name,
+      city: doc.doctorProfile?.city,
+      hospitalName: doc.doctorProfile?.hospitalName,
+      specialization: doc.doctorProfile?.specialization,
+      experienceYears: doc.doctorProfile?.experienceYears,
+      consultationFee: doc.doctorProfile?.consultationFee,
+      timeWindow: doc.doctorProfile?.timeWindow
+    }));
+    
+    res.json({ success: true, data: formattedDoctors });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Get unique cities from registered doctors
+router.get('/cities', async (req, res) => {
+  try {
+    const cities = await User.distinct('doctorProfile.city', { 
+      role: 'DOCTOR', 
+      'doctorProfile.city': { $exists: true, $ne: null } 
+    });
+    res.json({ success: true, data: cities.filter(Boolean).sort() });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Get unique hospitals by city
+router.get('/hospitals', async (req, res) => {
+  try {
+    const { city } = req.query;
+    const query = { role: 'DOCTOR', 'doctorProfile.hospitalName': { $exists: true, $ne: null } };
+    if (city) query['doctorProfile.city'] = city;
+    
+    const hospitals = await User.distinct('doctorProfile.hospitalName', query);
+    res.json({ success: true, data: hospitals.filter(Boolean).sort() });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Get unique specializations by city and hospital
+router.get('/specializations', async (req, res) => {
+  try {
+    const { city, hospitalName } = req.query;
+    const query = { role: 'DOCTOR', 'doctorProfile.specialization': { $exists: true, $ne: null } };
+    if (city) query['doctorProfile.city'] = city;
+    if (hospitalName) query['doctorProfile.hospitalName'] = hospitalName;
+    
+    const specializations = await User.distinct('doctorProfile.specialization', query);
+    res.json({ success: true, data: specializations.filter(Boolean).sort() });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Get doctor profile
+router.get('/profile', authenticate, requireRole('DOCTOR'), async (req, res) => {
+  try {
+    res.json({
+      success: true,
+      data: {
+        name: req.user.name,
+        doctorId: req.user.doctorId,
+        email: req.user.email,
+        phone: req.user.doctorProfile?.phone,
+        city: req.user.doctorProfile?.city,
+        hospitalName: req.user.doctorProfile?.hospitalName,
+        specialization: req.user.doctorProfile?.specialization,
+        experienceYears: req.user.doctorProfile?.experienceYears,
+        consultationFee: req.user.doctorProfile?.consultationFee,
+        maxPatientsPerSlot: req.user.doctorProfile?.maxPatientsPerSlot,
+        timeWindow: req.user.doctorProfile?.timeWindow
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Update doctor profile
+router.put('/profile', authenticate, requireRole('DOCTOR'), async (req, res) => {
+  try {
+    const { phone, city, hospitalName, specialization, experienceYears, consultationFee, maxPatientsPerSlot, timeWindow } = req.body;
+    
+    req.user.doctorProfile = {
+      phone,
+      city,
+      hospitalName,
+      specialization,
+      experienceYears,
+      consultationFee,
+      maxPatientsPerSlot,
+      timeWindow,
+      profileCompleted: true
+    };
+    
+    await req.user.save();
+    
+    res.json({
+      success: true,
+      data: {
+        name: req.user.name,
+        doctorId: req.user.doctorId,
+        email: req.user.email,
+        phone: req.user.doctorProfile.phone,
+        city: req.user.doctorProfile.city,
+        hospitalName: req.user.doctorProfile.hospitalName,
+        specialization: req.user.doctorProfile.specialization,
+        experienceYears: req.user.doctorProfile.experienceYears,
+        consultationFee: req.user.doctorProfile.consultationFee,
+        maxPatientsPerSlot: req.user.doctorProfile.maxPatientsPerSlot,
+        timeWindow: req.user.doctorProfile.timeWindow,
+        profileCompleted: req.user.doctorProfile.profileCompleted
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // Get patient reports by patientId
 router.get('/patient/:patientId/reports', authenticate, requireRole('DOCTOR'), async (req, res) => {
   try {

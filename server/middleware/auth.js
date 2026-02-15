@@ -53,7 +53,11 @@ const requireRole = (...roles) => {
       return res.status(401).json({ error: 'Authentication required' });
     }
     
-    if (!roles.includes(req.user.role)) {
+    // Normalize roles to uppercase for comparison
+    const userRole = String(req.user.role || '').toUpperCase();
+    const allowedRoles = roles.map(role => String(role).toUpperCase());
+    
+    if (!allowedRoles.includes(userRole)) {
       return res.status(403).json({ error: 'Access denied. Insufficient permissions.' });
     }
     

@@ -10,7 +10,8 @@ import {
   MenuItem,
   Typography,
   Box,
-  Alert
+  Alert,
+  CircularProgress
 } from '@mui/material';
 import { Person, Phone, LocationCity, LocalHospital, Biotech, AccessTime } from '@mui/icons-material';
 
@@ -29,6 +30,8 @@ const DoctorProfileCompletion = ({ open, doctorData, onComplete }) => {
     timeWindowEnd: '17:00'
   });
   const [errors, setErrors] = useState({});
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
 
   const specializationOptions = [
     { value: 'Cardiology', hint: 'Heart pain, BP, Cholesterol, ECG' },
@@ -67,29 +70,33 @@ const DoctorProfileCompletion = ({ open, doctorData, onComplete }) => {
     }
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!validateForm()) return;
     
+    setSubmitting(true);
+    setSubmitError('');
+    
     const doctorProfile = {
-      doctorId: doctorData._id,
-      name: formData.name.trim(),
       phone: formData.phone,
-      email: formData.email,
       city: formData.city.trim(),
       hospitalName: formData.hospitalName.trim(),
       specialization: formData.specialization,
       experienceYears: parseInt(formData.experienceYears) || 0,
       consultationFee: parseInt(formData.consultationFee) || 0,
       maxPatientsPerSlot: parseInt(formData.maxPatientsPerSlot),
-      slotDurationMin: 30,
       timeWindow: {
         start: formData.timeWindowStart,
         end: formData.timeWindowEnd
-      },
-      isActive: true
+      }
     };
     
-    onComplete(doctorProfile);
+    try {
+      await onComplete(doctorProfile);
+    } catch (error) {
+      setSubmitError(error.response?.data?.message || 'Failed to save profile. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const isFormValid = formData.name && formData.phone && formData.city && 
@@ -110,6 +117,12 @@ const DoctorProfileCompletion = ({ open, doctorData, onComplete }) => {
         <Alert severity="info" sx={{ mb: 3, mt: 2 }}>
           This information will be visible to patients when booking appointments
         </Alert>
+        
+        {submitError && (
+          <Alert severity="error" sx={{ mb: 3 }}>
+            {submitError}
+          </Alert>
+        )}
         
         <Grid container spacing={2}>
           <Grid item xs={12} md={6}>
@@ -282,15 +295,15 @@ const DoctorProfileCompletion = ({ open, doctorData, onComplete }) => {
         <Button
           variant="contained"
           onClick={handleSubmit}
-          disabled={!isFormValid}
+          disabled={!isFormValid || submitting}
           sx={{
-            background: isFormValid ? 'var(--gradient-primary)' : 'var(--gray-300)',
+            background: (isFormValid && !submitting) ? 'var(--gradient-primary)' : 'var(--gray-300)',
             px: 4,
             py: 1.5,
             fontWeight: 600
           }}
         >
-          Save Profile & Continue
+          {submitting ? <CircularProgress size={24} sx={{ color: 'white' }} /> : 'Save Profile & Continue'}
         </Button>
       </DialogActions>
     </Dialog>
