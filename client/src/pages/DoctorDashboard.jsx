@@ -22,13 +22,13 @@ import { Search, Person, CalendarToday, TrendingUp, ShowChart, Summarize } from 
 import Button from '../components/ui/Button';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { useAuth } from '../context/AuthContext';
-import { getDoctorById, upsertDoctor } from '../services/doctorsStore';
 import DoctorProfileCompletion from '../components/DoctorProfileCompletion';
 
 const DoctorDashboard = () => {
   const { user } = useAuth();
   const [showProfileCompletion, setShowProfileCompletion] = useState(false);
   const [profileLoading, setProfileLoading] = useState(true);
+  const [profileSuccess, setProfileSuccess] = useState(false);
   const [patientId, setPatientId] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -41,19 +41,42 @@ const DoctorDashboard = () => {
 
   useEffect(() => {
     if (user && user.role === 'DOCTOR') {
-      const doctorProfile = getDoctorById(user._id);
-      setProfileLoading(false);
-      if (!doctorProfile) {
-        setShowProfileCompletion(true);
-      }
+      checkDoctorProfile();
     } else {
       setProfileLoading(false);
     }
   }, [user]);
 
-  const handleProfileComplete = (doctorProfile) => {
-    upsertDoctor(doctorProfile);
-    setShowProfileCompletion(false);
+  const checkDoctorProfile = async () => {
+    try {
+      const response = await api.get('/api/auth/me');
+      setProfileLoading(false);
+      // Show profile completion modal if profileCompleted is false
+      if (response.data.user.role === 'DOCTOR' && !response.data.user.profileCompleted) {
+        setShowProfileCompletion(true);
+      }
+    } catch (err) {
+      setProfileLoading(false);
+    }
+  };
+
+  const handleProfileComplete = async (doctorProfile) => {
+    const response = await api.put('/api/doctor/profile', {
+      phone: doctorProfile.phone,
+      city: doctorProfile.city,
+      hospitalName: doctorProfile.hospitalName,
+      specialization: doctorProfile.specialization,
+      experienceYears: doctorProfile.experienceYears,
+      consultationFee: doctorProfile.consultationFee,
+      maxPatientsPerSlot: doctorProfile.maxPatientsPerSlot,
+      timeWindow: doctorProfile.timeWindow
+    });
+    
+    if (response.data.success) {
+      setShowProfileCompletion(false);
+      setProfileSuccess(true);
+      setTimeout(() => setProfileSuccess(false), 5000);
+    }
   };
 
   const handleSearch = async () => {
@@ -214,6 +237,12 @@ const DoctorDashboard = () => {
       />
       
       <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
+      {profileSuccess && (
+        <Alert severity="success" sx={{ mb: 3 }}>
+          Profile saved successfully! You can now start accepting patient appointments.
+        </Alert>
+      )}
+      
       <Paper
         elevation={0}
         sx={{

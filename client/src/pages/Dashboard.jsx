@@ -27,6 +27,7 @@ const Dashboard = () => {
     abnormalCount: 0,
     latestReports: []
   });
+  const [doctors, setDoctors] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -35,9 +36,10 @@ const Dashboard = () => {
 
   const fetchDashboardData = async () => {
     try {
-      const [reportsRes, biomarkersRes] = await Promise.all([
+      const [reportsRes, biomarkersRes, doctorsRes] = await Promise.all([
         api.get('/api/reports'),
-        api.get('/api/biomarkers/latest')
+        api.get('/api/biomarkers/latest'),
+        api.get('/api/patient/doctors')
       ]);
 
       const reports = reportsRes.data.reports || [];
@@ -50,6 +52,8 @@ const Dashboard = () => {
         abnormalCount: abnormal,
         latestReports: reports.slice(0, 5)
       });
+      
+      setDoctors(doctorsRes.data.doctors || []);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     } finally {
@@ -396,6 +400,50 @@ const Dashboard = () => {
             </div>
           </Grid>
         </Grid>
+
+        {/* Registered Doctors Section */}
+        {doctors.length > 0 && (
+          <Box sx={{ mt: 4 }}>
+            <div className="premium-card slide-in-up">
+              <Typography variant="h4" className="text-gradient" sx={{ fontWeight: 700, mb: 3 }}>
+                Registered Doctors
+              </Typography>
+              <Grid container spacing={3}>
+                {doctors.map((doctor, index) => (
+                  <Grid item xs={12} sm={6} md={4} key={doctor._id}>
+                    <div
+                      className="glass-effect hover-lift"
+                      style={{
+                        padding: '1.5rem',
+                        borderRadius: 'var(--radius-lg)',
+                        animationDelay: `${index * 0.1}s`
+                      }}
+                    >
+                      <Typography variant="h6" sx={{ fontWeight: 600, mb: 1, color: 'var(--gray-800)' }}>
+                        {doctor.name}
+                      </Typography>
+                      {doctor.specialization && (
+                        <Typography variant="body2" sx={{ color: 'var(--primary-600)', mb: 0.5 }}>
+                          {doctor.specialization}
+                        </Typography>
+                      )}
+                      {doctor.hospital && (
+                        <Typography variant="body2" sx={{ color: 'var(--gray-600)', mb: 0.5 }}>
+                          {doctor.hospital}
+                        </Typography>
+                      )}
+                      {doctor.experienceYears && (
+                        <Typography variant="caption" sx={{ color: 'var(--gray-500)' }}>
+                          {doctor.experienceYears} years experience
+                        </Typography>
+                      )}
+                    </div>
+                  </Grid>
+                ))}
+              </Grid>
+            </div>
+          </Box>
+        )}
       </Container>
     </div>
   );

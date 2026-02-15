@@ -73,7 +73,7 @@ router.post('/doctor/signup', [
       return res.status(400).json({ message: 'Validation failed', errors: errors.array() });
     }
     
-    const { email, password, name, specialization, hospital } = req.body;
+    const { email, password, name } = req.body;
     
     const existingUser = await User.findOne({ email });
     if (existingUser) {
@@ -81,14 +81,21 @@ router.post('/doctor/signup', [
     }
     
     const hashedPassword = await bcrypt.hash(password, 10);
+    let doctorId = User.generateDoctorId();
+    
+    // Ensure unique doctorId
+    while (await User.findOne({ doctorId })) {
+      doctorId = User.generateDoctorId();
+    }
+    
     const user = new User({
       email,
       password: hashedPassword,
       name,
       role: 'DOCTOR',
+      doctorId,
       doctorProfile: {
-        specialization,
-        hospital
+        profileCompleted: false
       }
     });
     
@@ -102,7 +109,9 @@ router.post('/doctor/signup', [
         id: user._id,
         email: user.email,
         name: user.name,
-        role: user.role
+        role: user.role,
+        doctorId: user.doctorId,
+        profileCompleted: false
       }
     });
   } catch (error) {
@@ -182,7 +191,8 @@ router.post('/doctor/login', [
         id: user._id,
         email: user.email,
         name: user.name,
-        role: user.role
+        role: user.role,
+        doctorId: user.doctorId
       }
     });
   } catch (error) {
@@ -292,6 +302,8 @@ router.get('/me', authenticate, async (req, res) => {
       name: req.user.name,
       role: req.user.role,
       patientId: req.user.patientId,
+      doctorId: req.user.doctorId,
+      profileCompleted: req.user.role === 'DOCTOR' ? (req.user.doctorProfile?.profileCompleted || false) : true,
       preferences: req.user.preferences
     }
   });

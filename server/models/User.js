@@ -28,10 +28,29 @@ const userSchema = new mongoose.Schema({
     sparse: true,
     index: true
   },
+  doctorId: {
+    type: String,
+    unique: true,
+    sparse: true,
+    index: true
+  },
   doctorProfile: {
+    phone: String,
+    city: String,
+    hospitalName: String,
     specialization: String,
     hospital: String,
-    experienceYears: Number
+    experienceYears: Number,
+    consultationFee: Number,
+    maxPatientsPerSlot: Number,
+    timeWindow: {
+      start: String,
+      end: String
+    },
+    profileCompleted: {
+      type: Boolean,
+      default: false
+    }
   },
   preferences: {
     diet: {
@@ -59,6 +78,16 @@ const userSchema = new mongoose.Schema({
 userSchema.statics.generatePatientId = function() {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   let id = 'VS-PAT-';
+  for (let i = 0; i < 8; i++) {
+    id += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return id;
+};
+
+// Generate unique doctor ID
+userSchema.statics.generateDoctorId = function() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let id = 'VS-DOC-';
   for (let i = 0; i < 8; i++) {
     id += chars.charAt(Math.floor(Math.random() * chars.length));
   }

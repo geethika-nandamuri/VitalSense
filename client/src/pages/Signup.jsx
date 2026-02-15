@@ -23,9 +23,7 @@ const Signup = () => {
     email: '',
     password: '',
     confirmPassword: '',
-    phoneNumber: '',
-    specialization: '',
-    hospital: ''
+    phoneNumber: ''
   });
   const [role, setRole] = useState('PATIENT');
   const [showPassword, setShowPassword] = useState(false);
@@ -80,11 +78,7 @@ const Signup = () => {
     
     setIsLoading(true);
     const additionalData = {
-      phoneNumber: formData.phoneNumber,
-      ...(role === 'DOCTOR' ? {
-        specialization: formData.specialization,
-        hospital: formData.hospital
-      } : {})
+      phoneNumber: formData.phoneNumber
     };
     
     const result = await signup(formData.name.trim(), formData.email, formData.password, role, additionalData);
@@ -283,30 +277,18 @@ const Signup = () => {
               }}
             />
 
-            {role === 'DOCTOR' && (
-              <>
-                <Input
-                  name="specialization"
-                  label="Specialization (Optional)"
-                  value={formData.specialization}
-                  onChange={handleChange}
-                  sx={{ mb: 2 }}
-                />
-                <Input
-                  name="hospital"
-                  label="Hospital/Clinic (Optional)"
-                  value={formData.hospital}
-                  onChange={handleChange}
-                  sx={{ mb: 3 }}
-                />
-              </>
-            )}
-
             <Button
               type="submit"
               fullWidth
               variant="contained"
-              disabled={isLoading || !formData.name || !formData.email || !formData.phoneNumber || !formData.password || !formData.confirmPassword}
+              disabled={
+                isLoading || 
+                !formData.name || 
+                !formData.email || 
+                !formData.phoneNumber || 
+                !formData.password || 
+                !formData.confirmPassword
+              }
               sx={{ mb: 3, py: 1.5 }}
             >
               {isLoading ? 'Creating Account...' : 'Create Account'}

@@ -33,13 +33,16 @@ import api from '../utils/api';
 
 const Appointments = () => {
   const [activeTab, setActiveTab] = useState(0);
+  const [cities, setCities] = useState([]);
   const [hospitals, setHospitals] = useState([]);
+  const [specializations, setSpecializations] = useState([]);
   const [doctors, setDoctors] = useState([]);
   const [myAppointments, setMyAppointments] = useState({ upcoming: [], past: [] });
   const [filters, setFilters] = useState({
     city: '',
-    hospitalId: '',
-    specialization: ''
+    hospitalName: '',
+    specialization: '',
+    doctorId: ''
   });
   const [bookingDialog, setBookingDialog] = useState({
     open: false,
@@ -52,22 +55,54 @@ const Appointments = () => {
   const [message, setMessage] = useState({ type: '', text: '' });
 
   useEffect(() => {
-    fetchHospitals();
+    fetchCities();
     fetchMyAppointments();
   }, []);
 
   useEffect(() => {
-    if (activeTab === 0) {
+    if (filters.city) {
+      fetchHospitals();
+      setFilters(prev => ({ ...prev, hospitalName: '', specialization: '', doctorId: '' }));
+    }
+  }, [filters.city]);
+
+  useEffect(() => {
+    if (filters.city && filters.hospitalName) {
+      fetchSpecializations();
+      setFilters(prev => ({ ...prev, specialization: '', doctorId: '' }));
+    }
+  }, [filters.hospitalName]);
+
+  useEffect(() => {
+    if (filters.city && filters.hospitalName && filters.specialization) {
       fetchDoctors();
     }
-  }, [filters, activeTab]);
+  }, [filters.specialization]);
+
+  const fetchCities = async () => {
+    try {
+      const response = await api.get('/api/doctor/cities');
+      setCities(response.data.data || []);
+    } catch (error) {
+      console.error('Error fetching cities:', error);
+    }
+  };
 
   const fetchHospitals = async () => {
     try {
-      const response = await api.get('/api/hospitals');
+      const response = await api.get(`/api/doctor/hospitals?city=${filters.city}`);
       setHospitals(response.data.data || []);
     } catch (error) {
       console.error('Error fetching hospitals:', error);
+    }
+  };
+
+  const fetchSpecializations = async () => {
+    try {
+      const response = await api.get(`/api/doctor/specializations?city=${filters.city}&hospitalName=${filters.hospitalName}`);
+      setSpecializations(response.data.data || []);
+    } catch (error) {
+      console.error('Error fetching specializations:', error);
     }
   };
 
@@ -76,10 +111,10 @@ const Appointments = () => {
       setLoading(true);
       const params = new URLSearchParams();
       if (filters.city) params.append('city', filters.city);
-      if (filters.hospitalId) params.append('hospitalId', filters.hospitalId);
+      if (filters.hospitalName) params.append('hospitalName', filters.hospitalName);
       if (filters.specialization) params.append('specialization', filters.specialization);
       
-      const response = await api.get(`/api/doctors?${params}`);
+      const response = await api.get(`/api/doctor/list?${params}`);
       setDoctors(response.data.data || []);
     } catch (error) {
       console.error('Error fetching doctors:', error);
@@ -200,38 +235,77 @@ const Appointments = () => {
             <Box>
               {/* Filters */}
               <Grid container spacing={3} sx={{ mb: 4 }}>
-                <Grid item xs={12} md={4}>
-                  <TextField
-                    fullWidth
-                    label="City"
-                    value={filters.city}
-                    onChange={(e) => setFilters({ ...filters, city: e.target.value })}
-                  />
-                </Grid>
-                <Grid item xs={12} md={4}>
+                <Grid item xs={12} md={3}>
                   <FormControl fullWidth>
-                    <InputLabel>Hospital</InputLabel>
+                    <InputLabel>City</InputLabel>
                     <Select
-                      value={filters.hospitalId}
-                      onChange={(e) => setFilters({ ...filters, hospitalId: e.target.value })}
-                      label="Hospital"
+                      value={filters.city}
+                      onChange={(e) => setFilters({ ...filters, city: e.target.value })}
+                      label="City"
                     >
-                      <MenuItem value="">All Hospitals</MenuItem>
-                      {hospitals.map((hospital) => (
-                        <MenuItem key={hospital._id} value={hospital._id}>
-                          {hospital.name} - {hospital.city}
+                      <MenuItem value="">Select City</MenuItem>
+                      {cities.map((city) => (
+                        <MenuItem key={city} value={city}>
+                          {city}
                         </MenuItem>
                       ))}
                     </Select>
                   </FormControl>
                 </Grid>
-                <Grid item xs={12} md={4}>
-                  <TextField
-                    fullWidth
-                    label="Specialization"
-                    value={filters.specialization}
-                    onChange={(e) => setFilters({ ...filters, specialization: e.target.value })}
-                  />
+                <Grid item xs={12} md={3}>
+                  <FormControl fullWidth disabled={!filters.city}>
+                    <InputLabel>Hospital</InputLabel>
+                    <Select
+                      value={filters.hospitalName}
+                      onChange={(e) => setFilters({ ...filters, hospitalName: e.target.value })}
+                      label="Hospital"
+                    >
+                      <MenuItem value="">Select Hospital</MenuItem>
+                      {hospitals.map((hospital) => (
+                        <MenuItem key={hospital} value={hospital}>
+                          {hospital}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Grid>
+                <Grid item xs={12} md={3}>
+                  <FormControl fullWidth disabled={!filters.hospitalName}>
+                    <InputLabel>Specialization</InputLabel>
+                    <Select
+                      value={filters.specialization}
+                      onChange={(e) => setFilters({ ...filters, specialization: e.target.value })}
+                      label="Specialization"
+                    >
+                      <MenuItem value="">Select Specialization</MenuItem>
+                      {specializations.map((spec) => (
+                        <MenuItem key={spec} value={spec}>
+                          {spec}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Grid>
+                <Grid item xs={12} md={3}>
+                  <FormControl fullWidth disabled={!filters.specialization || doctors.length === 0}>
+                    <InputLabel>Doctor</InputLabel>
+                    <Select
+                      value={filters.doctorId}
+                      onChange={(e) => {
+                        const selectedDoctor = doctors.find(d => d._id === e.target.value);
+                        setFilters({ ...filters, doctorId: e.target.value });
+                        if (selectedDoctor) handleBookAppointment(selectedDoctor);
+                      }}
+                      label="Doctor"
+                    >
+                      <MenuItem value="">Select Doctor</MenuItem>
+                      {doctors.map((doctor) => (
+                        <MenuItem key={doctor._id} value={doctor._id}>
+                          {doctor.name}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
                 </Grid>
               </Grid>
 
@@ -241,9 +315,13 @@ const Appointments = () => {
                   <Grid item xs={12}>
                     <Typography>Loading doctors...</Typography>
                   </Grid>
+                ) : !filters.specialization ? (
+                  <Grid item xs={12}>
+                    <Alert severity="info">Please select City, Hospital, and Specialization to view available doctors.</Alert>
+                  </Grid>
                 ) : doctors.length === 0 ? (
                   <Grid item xs={12}>
-                    <Typography>No doctors found. Try adjusting your filters.</Typography>
+                    <Alert severity="warning">No registered doctors found for the selected filters.</Alert>
                   </Grid>
                 ) : (
                   doctors.map((doctor) => (
@@ -263,17 +341,21 @@ const Appointments = () => {
                           
                           <Typography variant="body2" sx={{ mb: 1 }}>
                             <LocalHospital sx={{ fontSize: 16, mr: 0.5 }} />
-                            {doctor.hospitalId.name}, {doctor.hospitalId.city}
+                            {doctor.hospitalName}, {doctor.city}
                           </Typography>
                           
-                          <Typography variant="body2" sx={{ mb: 1 }}>
-                            <strong>Experience:</strong> {doctor.experienceYears} years
-                          </Typography>
+                          {doctor.experienceYears > 0 && (
+                            <Typography variant="body2" sx={{ mb: 1 }}>
+                              <strong>Experience:</strong> {doctor.experienceYears} years
+                            </Typography>
+                          )}
                           
-                          <Typography variant="body2" sx={{ mb: 2 }}>
-                            <AttachMoney sx={{ fontSize: 16, mr: 0.5 }} />
-                            ${doctor.fee}
-                          </Typography>
+                          {doctor.consultationFee > 0 && (
+                            <Typography variant="body2" sx={{ mb: 2 }}>
+                              <AttachMoney sx={{ fontSize: 16, mr: 0.5 }} />
+                              ₹{doctor.consultationFee}
+                            </Typography>
+                          )}
                           
                           <Button
                             variant="contained"
@@ -393,9 +475,11 @@ const Appointments = () => {
               <Box sx={{ mb: 3 }}>
                 <Typography variant="h6">{bookingDialog.doctor.name}</Typography>
                 <Typography variant="body2">
-                  {bookingDialog.doctor.specialization} • {bookingDialog.doctor.hospitalId.name}
+                  {bookingDialog.doctor.specialization} • {bookingDialog.doctor.hospitalName}
                 </Typography>
-                <Typography variant="body2">Fee: ${bookingDialog.doctor.fee}</Typography>
+                {bookingDialog.doctor.consultationFee > 0 && (
+                  <Typography variant="body2">Fee: ₹{bookingDialog.doctor.consultationFee}</Typography>
+                )}
               </Box>
             )}
             
@@ -417,9 +501,11 @@ const Appointments = () => {
                 onChange={(e) => setBookingDialog({ ...bookingDialog, timeSlot: e.target.value })}
                 label="Time Slot"
               >
-                {bookingDialog.doctor?.availableSlots.map((slot) => (
-                  <MenuItem key={slot} value={slot}>{slot}</MenuItem>
-                ))}
+                {bookingDialog.doctor?.timeWindow && (
+                  <MenuItem value={`${bookingDialog.doctor.timeWindow.start} - ${bookingDialog.doctor.timeWindow.end}`}>
+                    {bookingDialog.doctor.timeWindow.start} - {bookingDialog.doctor.timeWindow.end}
+                  </MenuItem>
+                )}
               </Select>
             </FormControl>
             
