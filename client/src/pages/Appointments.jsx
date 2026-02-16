@@ -125,10 +125,15 @@ const Appointments = () => {
 
   const fetchMyAppointments = async () => {
     try {
-      const response = await api.get('/api/appointments/my', {
-        headers: { 'x-patient-id': 'demo-patient-123' } // Demo header
-      });
-      setMyAppointments(response.data.data);
+      const response = await api.get('/api/patient/appointments');
+      const appointments = response.data.data || [];
+      
+      // Separate upcoming and past
+      const now = new Date();
+      const upcoming = appointments.filter(apt => new Date(apt.date) >= now);
+      const past = appointments.filter(apt => new Date(apt.date) < now);
+      
+      setMyAppointments({ upcoming, past });
     } catch (error) {
       console.error('Error fetching appointments:', error);
     }
@@ -148,14 +153,11 @@ const Appointments = () => {
     try {
       const { doctor, date, timeSlot, reason } = bookingDialog;
       
-      await api.post('/api/appointments', {
+      await api.post('/api/appointments/book', {
         doctorId: doctor._id,
-        hospitalId: doctor.hospitalId._id,
         date,
-        timeSlot,
+        time: timeSlot,
         reason
-      }, {
-        headers: { 'x-patient-id': 'demo-patient-123' } // Demo header
       });
 
       setMessage({ type: 'success', text: 'Appointment booked successfully!' });
@@ -171,9 +173,7 @@ const Appointments = () => {
 
   const cancelAppointment = async (appointmentId) => {
     try {
-      await api.patch(`/api/appointments/${appointmentId}/cancel`, {}, {
-        headers: { 'x-patient-id': 'demo-patient-123' } // Demo header
-      });
+      await api.patch(`/api/appointments/${appointmentId}/cancel`);
       
       setMessage({ type: 'success', text: 'Appointment cancelled successfully!' });
       fetchMyAppointments();
@@ -187,10 +187,10 @@ const Appointments = () => {
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'Confirmed': return 'success';
-      case 'Pending': return 'warning';
-      case 'Cancelled': return 'error';
-      case 'Completed': return 'info';
+      case 'CONFIRMED': return 'success';
+      case 'BOOKED': return 'info';
+      case 'CANCELLED': return 'error';
+      case 'COMPLETED': return 'default';
       default: return 'default';
     }
   };
@@ -390,13 +390,13 @@ const Appointments = () => {
                         <CardContent>
                           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <Box>
-                              <Typography variant="h6">{appointment.doctorId.name}</Typography>
+                              <Typography variant="h6">{appointment.doctorId?.name || 'Doctor'}</Typography>
                               <Typography variant="body2">
-                                {appointment.doctorId.specialization} • {appointment.hospitalId.name}
+                                {appointment.doctorId?.doctorProfile?.specialization || 'Specialist'} • {appointment.doctorId?.doctorProfile?.hospitalName || 'Hospital'}
                               </Typography>
                               <Typography variant="body2">
                                 <CalendarToday sx={{ fontSize: 16, mr: 0.5 }} />
-                                {new Date(appointment.date).toLocaleDateString()} at {appointment.timeSlot}
+                                {new Date(appointment.date).toLocaleDateString()} at {appointment.time}
                               </Typography>
                             </Box>
                             <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
@@ -405,7 +405,7 @@ const Appointments = () => {
                                 color={getStatusColor(appointment.status)}
                                 size="small"
                               />
-                              {appointment.status !== 'Cancelled' && (
+                              {appointment.status !== 'CANCELLED' && (
                                 <Button
                                   size="small"
                                   color="error"
@@ -437,13 +437,13 @@ const Appointments = () => {
                         <CardContent>
                           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <Box>
-                              <Typography variant="h6">{appointment.doctorId.name}</Typography>
+                              <Typography variant="h6">{appointment.doctorId?.name || 'Doctor'}</Typography>
                               <Typography variant="body2">
-                                {appointment.doctorId.specialization} • {appointment.hospitalId.name}
+                                {appointment.doctorId?.doctorProfile?.specialization || 'Specialist'} • {appointment.doctorId?.doctorProfile?.hospitalName || 'Hospital'}
                               </Typography>
                               <Typography variant="body2">
                                 <CalendarToday sx={{ fontSize: 16, mr: 0.5 }} />
-                                {new Date(appointment.date).toLocaleDateString()} at {appointment.timeSlot}
+                                {new Date(appointment.date).toLocaleDateString()} at {appointment.time}
                               </Typography>
                             </Box>
                             <Chip 

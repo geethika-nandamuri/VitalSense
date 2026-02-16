@@ -1,5 +1,6 @@
 const express = require('express');
 const User = require('../models/User');
+const Appointment = require('../models/Appointment');
 const { authenticate, requireRole } = require('../middleware/auth');
 const { buildTrendsFromUserId } = require('../services/trendService');
 
@@ -16,6 +17,19 @@ router.get('/profile', authenticate, requireRole('PATIENT'), async (req, res) =>
         email: req.user.email
       }
     });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Get patient appointments
+router.get('/appointments', authenticate, requireRole('PATIENT'), async (req, res) => {
+  try {
+    const appointments = await Appointment.find({ patientId: req.user._id })
+      .populate('doctorId', 'name email doctorId doctorProfile')
+      .sort({ date: -1, createdAt: -1 });
+    
+    res.json({ success: true, data: appointments });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

@@ -8,21 +8,15 @@ import {
   TextField,
   Chip,
   Grid,
-  Button,
   Alert
 } from '@mui/material';
 import {
   CalendarToday,
   Person,
-  Phone,
-  LocationCity,
-  LocalHospital,
-  AccessTime,
-  CheckCircle,
-  Cancel
+  AccessTime
 } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
-import { getAppointmentsByDoctorAndDate, updateAppointmentStatus } from '../services/appointmentsStore';
+import api from '../utils/api';
 
 const DoctorAppointments = () => {
   const { user } = useAuth();
@@ -34,34 +28,23 @@ const DoctorAppointments = () => {
     if (user && user.role === 'DOCTOR') {
       fetchAppointments();
     }
-  }, [selectedDate, user]);
+  }, [user]);
 
-  const fetchAppointments = () => {
-    if (!user || !user._id) return;
-    const doctorId = user._id;
-    const apts = getAppointmentsByDoctorAndDate(doctorId, selectedDate);
-    setAppointments(apts);
-  };
-
-  const handleConfirm = (appointmentId) => {
-    updateAppointmentStatus(appointmentId, 'Confirmed');
-    setMessage({ type: 'success', text: 'Appointment confirmed successfully!' });
-    fetchAppointments();
-    setTimeout(() => setMessage({ type: '', text: '' }), 3000);
-  };
-
-  const handleCancel = (appointmentId) => {
-    updateAppointmentStatus(appointmentId, 'Cancelled');
-    setMessage({ type: 'info', text: 'Appointment cancelled.' });
-    fetchAppointments();
-    setTimeout(() => setMessage({ type: '', text: '' }), 3000);
+  const fetchAppointments = async () => {
+    try {
+      const response = await api.get('/api/doctor/appointments');
+      setAppointments(response.data.data || []);
+    } catch (error) {
+      console.error('Error fetching appointments:', error);
+    }
   };
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'Confirmed': return 'success';
-      case 'Pending': return 'warning';
-      case 'Cancelled': return 'error';
+      case 'CONFIRMED': return 'success';
+      case 'BOOKED': return 'info';
+      case 'CANCELLED': return 'error';
+      case 'COMPLETED': return 'default';
       default: return 'default';
     }
   };
@@ -75,6 +58,12 @@ const DoctorAppointments = () => {
       day: 'numeric' 
     });
   };
+
+  // Filter appointments by selected date
+  const filteredAppointments = appointments.filter(apt => {
+    const aptDate = new Date(apt.date).toISOString().split('T')[0];
+    return aptDate === selectedDate;
+  });
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--gradient-background)' }}>
@@ -124,7 +113,7 @@ const DoctorAppointments = () => {
         </Card>
 
         {/* Appointments List */}
-        {appointments.length === 0 ? (
+        {filteredAppointments.length === 0 ? (
           <Card className="premium-card">
             <CardContent sx={{ textAlign: 'center', py: 6 }}>
               <CalendarToday sx={{ fontSize: 64, color: 'var(--gray-300)', mb: 2 }} />
@@ -139,11 +128,11 @@ const DoctorAppointments = () => {
         ) : (
           <Box>
             <Typography variant="h5" sx={{ fontWeight: 600, mb: 3, color: 'var(--gray-800)' }}>
-              Appointments ({appointments.length})
+              Appointments ({filteredAppointments.length})
             </Typography>
             <Grid container spacing={3}>
-              {appointments.map((appointment, index) => (
-                <Grid item xs={12} md={6} key={appointment.id}>
+              {filteredAppointments.map((appointment, index) => (
+                <Grid item xs={12} md={6} key={appointment._id}>
                   <Card 
                     className="hover-lift premium-card"
                     sx={{ 
@@ -158,13 +147,11 @@ const DoctorAppointments = () => {
                           <Person sx={{ color: 'var(--primary-600)', fontSize: 28 }} />
                           <Box>
                             <Typography variant="h6" sx={{ fontWeight: 700, color: 'var(--gray-800)' }}>
-                              {appointment.patientName}
+                              {appointment.patientId?.name || 'Patient'}
                             </Typography>
-                            {appointment.patientAge && appointment.patientGender && (
-                              <Typography variant="caption" sx={{ color: 'var(--gray-500)' }}>
-                                {appointment.patientAge} yrs • {appointment.patientGender}
-                              </Typography>
-                            )}
+                            <Typography variant="caption" sx={{ color: 'var(--gray-500)' }}>
+                              ID: {appointment.patientId?.patientId || 'N/A'}
+                            </Typography>
                           </Box>
                         </Box>
                         <Chip 
@@ -185,76 +172,18 @@ const DoctorAppointments = () => {
                           </Typography>
                         </Box>
 
-                        {/* Phone */}
-                        {appointment.patientPhone && (
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <Phone sx={{ color: 'var(--gray-500)', fontSize: 20 }} />
-                            <Typography variant="body2" sx={{ color: 'var(--gray-600)' }}>
-                              {appointment.patientPhone}
+                        {/* Reason */}
+                        {appointment.reason && (
+                          <Box>
+                            <Typography variant="caption" sx={{ color: 'var(--gray-500)', fontWeight: 600 }}>
+                              REASON:
+                            </Typography>
+                            <Typography variant="body2" sx={{ color: 'var(--gray-700)' }}>
+                              {appointment.reason}
                             </Typography>
                           </Box>
                         )}
-
-                        {/* City */}
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <LocationCity sx={{ color: 'var(--gray-500)', fontSize: 20 }} />
-                          <Typography variant="body2" sx={{ color: 'var(--gray-600)' }}>
-                            {appointment.city}
-                          </Typography>
-                        </Box>
-
-                        {/* Hospital */}
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <LocalHospital sx={{ color: 'var(--gray-500)', fontSize: 20 }} />
-                          <Typography variant="body2" sx={{ color: 'var(--gray-600)' }}>
-                            {appointment.hospital}
-                          </Typography>
-                        </Box>
-
-                        {/* Specialization */}
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Typography variant="caption" sx={{ color: 'var(--gray-500)', fontWeight: 600 }}>
-                            SPECIALIZATION:
-                          </Typography>
-                          <Typography variant="body2" sx={{ color: 'var(--gray-700)', fontWeight: 500 }}>
-                            {appointment.specialization}
-                          </Typography>
-                        </Box>
                       </Box>
-
-                      {/* Actions */}
-                      {appointment.status === 'Pending' && (
-                        <Box sx={{ display: 'flex', gap: 1, mt: 2 }}>
-                          <Button
-                            variant="contained"
-                            size="small"
-                            startIcon={<CheckCircle />}
-                            onClick={() => handleConfirm(appointment.id)}
-                            sx={{
-                              flex: 1,
-                              background: 'var(--gradient-secondary)',
-                              textTransform: 'none',
-                              fontWeight: 600
-                            }}
-                          >
-                            Confirm
-                          </Button>
-                          <Button
-                            variant="outlined"
-                            size="small"
-                            color="error"
-                            startIcon={<Cancel />}
-                            onClick={() => handleCancel(appointment.id)}
-                            sx={{
-                              flex: 1,
-                              textTransform: 'none',
-                              fontWeight: 600
-                            }}
-                          >
-                            Cancel
-                          </Button>
-                        </Box>
-                      )}
                     </CardContent>
                   </Card>
                 </Grid>
