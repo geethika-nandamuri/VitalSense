@@ -28,14 +28,32 @@ const DoctorAppointments = () => {
     if (user && user.role === 'DOCTOR') {
       fetchAppointments();
     }
-  }, [user]);
+  }, [user, selectedDate]);
 
   const fetchAppointments = async () => {
     try {
-      const response = await api.get('/api/doctor/appointments');
+      console.log('\n=== FETCHING DOCTOR APPOINTMENTS ===');
+      console.log('Selected Date:', selectedDate);
+      console.log('Request URL:', `/api/doctor/appointments?date=${selectedDate}`);
+      
+      const response = await api.get(`/api/doctor/appointments?date=${selectedDate}`);
+      
+      console.log('Response Data:', response.data);
+      console.log('Appointments Count:', response.data.data?.length || 0);
+      if (response.data.data && response.data.data.length > 0) {
+        console.log('Sample Appointment:', {
+          doctorId: response.data.data[0].doctorId,
+          patientName: response.data.data[0].patientId?.name,
+          date: response.data.data[0].date,
+          time: response.data.data[0].time
+        });
+      }
+      console.log('====================================\n');
+      
       setAppointments(response.data.data || []);
     } catch (error) {
-      console.error('Error fetching appointments:', error);
+      console.error('❌ Error fetching appointments:', error);
+      console.error('❌ Error response:', error.response?.data);
     }
   };
 
@@ -59,11 +77,8 @@ const DoctorAppointments = () => {
     });
   };
 
-  // Filter appointments by selected date
-  const filteredAppointments = appointments.filter(apt => {
-    const aptDate = new Date(apt.date).toISOString().split('T')[0];
-    return aptDate === selectedDate;
-  });
+  // No need to filter locally - backend filters by date
+  const filteredAppointments = appointments;
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--gradient-background)' }}>

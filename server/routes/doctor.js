@@ -148,12 +148,41 @@ router.put('/profile', authenticate, requireRole('DOCTOR'), async (req, res) => 
 // Get doctor appointments
 router.get('/appointments', authenticate, requireRole('DOCTOR'), async (req, res) => {
   try {
-    const appointments = await Appointment.find({ doctorId: req.user._id })
-      .populate('patientId', 'name email patientId')
-      .sort({ date: -1, createdAt: -1 });
+    const { date } = req.query;
+    
+    console.log('\n=== DOCTOR APPOINTMENTS REQUEST ===');
+    console.log('Doctor ID (req.user._id):', req.user._id);
+    console.log('Doctor Email:', req.user.email);
+    console.log('Query Date:', date);
+    
+    let query = { doctorId: req.user._id };
+    
+    // If date provided, filter by that specific date
+    if (date) {
+      const start = new Date(date);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(date);
+      end.setHours(23, 59, 59, 999);
+      query.date = { $gte: start, $lte: end };
+      console.log('Date Range:', { start, end });
+    }
+    
+    console.log('Query:', JSON.stringify(query, null, 2));
+    
+    const appointments = await Appointment.find(query)
+      .populate('patientId', 'name email patientId phoneNumber')
+      .sort({ date: -1, time: 1 });
+    
+    console.log('Found Appointments:', appointments.length);
+    if (appointments.length > 0) {
+      console.log('Sample appointment doctorId:', appointments[0].doctorId);
+      console.log('Sample appointment date:', appointments[0].date);
+    }
+    console.log('===================================\n');
     
     res.json({ success: true, data: appointments });
   } catch (error) {
+    console.error('❌ DOCTOR APPOINTMENTS ERROR:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
