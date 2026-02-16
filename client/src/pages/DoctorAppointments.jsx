@@ -24,6 +24,16 @@ const DoctorAppointments = () => {
   const [appointments, setAppointments] = useState([]);
   const [message, setMessage] = useState({ type: '', text: '' });
 
+  // Helper function to format time from 24-hour to 12-hour format
+  const formatTime = (time24) => {
+    if (!time24) return '';
+    const [hours, minutes] = time24.split(':');
+    const h = parseInt(hours, 10);
+    const period = h >= 12 ? 'PM' : 'AM';
+    const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+    return `${h12}:${minutes} ${period}`;
+  };
+
   useEffect(() => {
     if (user && user.role === 'DOCTOR') {
       fetchAppointments();
@@ -183,7 +193,7 @@ const DoctorAppointments = () => {
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                           <AccessTime sx={{ color: 'var(--gray-500)', fontSize: 20 }} />
                           <Typography variant="body2" sx={{ fontWeight: 600, color: 'var(--gray-700)' }}>
-                            {appointment.time}
+                            {formatTime(appointment.time)}
                           </Typography>
                         </Box>
 

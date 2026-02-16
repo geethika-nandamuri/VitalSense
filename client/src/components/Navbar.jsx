@@ -136,7 +136,7 @@ const Navbar = () => {
       >
         <Container>
           <Toolbar>
-            {isMobile && (
+            {isMobile && isAuthenticated && (
               <IconButton
                 color="inherit"
                 edge="start"
@@ -149,8 +149,8 @@ const Navbar = () => {
             
             <Typography
               variant="h6"
-              component={Link}
-              to={user?.role === 'DOCTOR' ? '/doctor/dashboard' : '/patient/dashboard'}
+              component={isAuthenticated ? Link : 'div'}
+              to={isAuthenticated ? (user?.role === 'DOCTOR' ? '/doctor/dashboard' : '/patient/dashboard') : undefined}
               sx={{
                 flexGrow: 1,
                 textDecoration: 'none',
@@ -162,18 +162,19 @@ const Navbar = () => {
                 WebkitTextFillColor: 'transparent',
                 backgroundClip: 'text',
                 letterSpacing: '-0.02em',
-                '&:hover': {
+                cursor: isAuthenticated ? 'pointer' : 'default',
+                '&:hover': isAuthenticated ? {
                   background: 'linear-gradient(135deg, #0284c7 0%, #0d9488 100%)',
                   WebkitBackgroundClip: 'text',
                   WebkitTextFillColor: 'transparent',
                   backgroundClip: 'text'
-                }
+                } : {}
               }}
             >
               VitalSense
             </Typography>
 
-            {!isMobile && (
+            {!isMobile && isAuthenticated && (
               <Box sx={{ display: 'flex', gap: 1, mr: 2 }}>
                 {navigationItems.map((item) => (
                   <Button
@@ -323,25 +324,27 @@ const Navbar = () => {
         </Menu>
       )}
 
-      <Drawer
-        variant="temporary"
-        open={mobileOpen}
-        onClose={handleDrawerToggle}
-        ModalProps={{
-          keepMounted: true,
-        }}
-        sx={{
-          display: { xs: 'block', md: 'none' },
-          '& .MuiDrawer-paper': {
-            boxSizing: 'border-box',
-            width: 250,
-            background: 'rgba(255, 255, 255, 0.98)',
-            backdropFilter: 'blur(20px)'
-          },
-        }}
-      >
-        {drawer}
-      </Drawer>
+      {isAuthenticated && (
+        <Drawer
+          variant="temporary"
+          open={mobileOpen}
+          onClose={handleDrawerToggle}
+          ModalProps={{
+            keepMounted: true,
+          }}
+          sx={{
+            display: { xs: 'block', md: 'none' },
+            '& .MuiDrawer-paper': {
+              boxSizing: 'border-box',
+              width: 250,
+              background: 'rgba(255, 255, 255, 0.98)',
+              backdropFilter: 'blur(20px)'
+            },
+          }}
+        >
+          {drawer}
+        </Drawer>
+      )}
     </>
   );
 };
