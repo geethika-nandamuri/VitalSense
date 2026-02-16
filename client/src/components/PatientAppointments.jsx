@@ -36,6 +36,16 @@ const PatientAppointments = () => {
   const [doctors, setDoctors] = useState([]);
   const [loading, setLoading] = useState(true);
   
+  // Helper function to format time from 24-hour to 12-hour format
+  const formatTime = (time24) => {
+    if (!time24) return '';
+    const [hours, minutes] = time24.split(':');
+    const h = parseInt(hours, 10);
+    const period = h >= 12 ? 'PM' : 'AM';
+    const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+    return `${h12}:${minutes} ${period}`;
+  };
+  
   // Time slots (09:00 to 17:00, 30-minute intervals)
   const timeSlots = [];
   for (let h = 9; h <= 17; h++) {
@@ -289,7 +299,7 @@ const PatientAppointments = () => {
                       ) : (
                         timeSlots.map(slot => (
                           <MenuItem key={slot} value={slot}>
-                            {slot}
+                            {formatTime(slot)}
                           </MenuItem>
                         ))
                       )}
@@ -408,7 +418,7 @@ const PatientAppointments = () => {
                               </Box>
                               <Box>
                                 <Typography variant="caption" sx={{ color: 'var(--gray-500)', display: 'block' }}>Time</Typography>
-                                <Typography variant="body1" sx={{ fontWeight: 600, color: 'var(--gray-700)' }}>{appointment.time}</Typography>
+                                <Typography variant="body1" sx={{ fontWeight: 600, color: 'var(--gray-700)' }}>{formatTime(appointment.time)}</Typography>
                               </Box>
                             </Box>
                           </Box>
