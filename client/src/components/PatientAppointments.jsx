@@ -28,7 +28,6 @@ import {
   LocalHospital
 } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
-import { addAppointment, getAppointmentsByPatient } from '../services/appointmentsStore';
 import api from '../utils/api';
 
 const PatientAppointments = () => {
@@ -44,13 +43,8 @@ const PatientAppointments = () => {
     if (h < 17) timeSlots.push(`${h.toString().padStart(2, '0')}:30`);
   }
 
-  // My appointments state - load from store
-  const [myAppointments, setMyAppointments] = useState(() => {
-    if (user && user._id) {
-      return getAppointmentsByPatient(user._id);
-    }
-    return [];
-  });
+  // My appointments state - load from API
+  const [myAppointments, setMyAppointments] = useState([]);
 
   // Tab state
   const [activeTab, setActiveTab] = useState(0);
@@ -60,19 +54,32 @@ const PatientAppointments = () => {
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedTime, setSelectedTime] = useState('');
   const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
 
   useEffect(() => {
     fetchDoctors();
+    fetchMyAppointments();
   }, []);
 
   const fetchDoctors = async () => {
     try {
-      const response = await api.get('/api/patient/doctors');
-      setDoctors(response.data.doctors || []);
+      const response = await api.get('/api/doctor/list');
+      setDoctors(response.data.data || []);
     } catch (error) {
       console.error('Error fetching doctors:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchMyAppointments = async () => {
+    try {
+      console.log('FETCHING MY APPOINTMENTS...');
+      const response = await api.get('/api/patient/appointments');
+      console.log('MY APPOINTMENTS RESPONSE:', response.data);
+      setMyAppointments(response.data.data || []);
+    } catch (error) {
+      console.error('Error fetching appointments:', error);
     }
   };
 
@@ -95,29 +102,67 @@ const PatientAppointments = () => {
     setSelectedTime(e.target.value);
   };
 
-  const handleBookAppointment = () => {
+  const handleBookAppointment = async () => {
     if (!selectedDoctorProfile) return;
     
-    const appointmentData = {
-      doctorId: selectedDoctorId,
-      doctorName: selectedDoctorProfile.name,
-      patientId: user?._id || 'p101',
-      patientName: user?.name || 'Patient',
-      patientPhone: user?.phone || user?.phoneNumber || 'N/A',
-      specialization: selectedDoctorProfile.specialization || 'General',
-      hospital: selectedDoctorProfile.hospital || 'N/A',
-      date: selectedDate,
-      time: selectedTime,
-      status: 'Confirmed'
-    };
+    try {
+      const token = localStorage.getItem('token');
+      console.log('🔑 FRONTEND: Token present:', !!token);
+      if (token) {
+        console.log('🔑 FRONTEND: Token preview:', token.substring(0, 30) + '...');
+      }
+      
+      console.log('📝 FRONTEND: Booking request:', {
+        doctorId: selectedDoctorId,
+        date: selectedDate,
+        time: selectedTime
+      });
+      
+      const res = await api.post('/api/appointments/book', {
+        doctorId: selectedDoctorId,
+        date: selectedDate,
+        time: selectedTime,
+        reason: ''
+      });
 
-    const newAppointment = addAppointment(appointmentData);
-    setMyAppointments(prev => [...prev, newAppointment]);
+      console.log('✅ BOOK SUCCESS:', res.data);
 
-    setSelectedDoctorId('');
-    setSelectedDate('');
-    setSelectedTime('');
-    setShowToast(true);
+      // Verify booking was successful
+      if (!res.data || !res.data.success) {
+        throw new Error('Booking failed');
+      }
+
+      // Refresh appointments list
+      await fetchMyAppointments();
+
+      // Reset form
+      setSelectedDoctorId('');
+      setSelectedDate('');
+      setSelectedTime('');
+      
+      setToastMessage('Appointment booked successfully!');
+      setShowToast(true);
+    } catch (error) {
+      console.error('❌ BOOKING ERROR:', error);
+      console.error('❌ ERROR STATUS:', error.response?.status);
+      console.error('❌ ERROR DATA:', error.response?.data);
+      
+      let errorMessage = 'Error booking appointment';
+      
+      if (error.response?.status === 403) {
+        errorMessage = error.response?.data?.error || 'Access denied. Please login as a patient.';
+        if (error.response?.data?.userRole && error.response?.data?.requiredRoles) {
+          errorMessage += ` (Your role: ${error.response.data.userRole}, Required: ${error.response.data.requiredRoles.join(', ')})`;
+        }
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      }
+      
+      setToastMessage(errorMessage);
+      setShowToast(true);
+    }
   };
 
   const isBookingEnabled = selectedDoctorId && selectedDate && selectedTime;
@@ -195,9 +240,14 @@ const PatientAppointments = () => {
                   </FormControl>
                   {selectedDoctorProfile && (
                     <Box sx={{ mt: 1 }}>
-                      {selectedDoctorProfile.hospital && (
+                      {selectedDoctorProfile.hospitalName && (
                         <Typography variant="caption" sx={{ color: 'var(--gray-600)', display: 'block' }}>
-                          Hospital: {selectedDoctorProfile.hospital}
+                          Hospital: {selectedDoctorProfile.hospitalName}
+                        </Typography>
+                      )}
+                      {selectedDoctorProfile.city && (
+                        <Typography variant="caption" sx={{ color: 'var(--gray-600)', display: 'block' }}>
+                          City: {selectedDoctorProfile.city}
                         </Typography>
                       )}
                     </Box>
@@ -292,7 +342,7 @@ const PatientAppointments = () => {
               ) : (
                 <Grid container spacing={3}>
                   {myAppointments.map((appointment, index) => (
-                    <Grid item xs={12} md={6} key={appointment.id}>
+                    <Grid item xs={12} md={6} key={appointment._id}>
                       <Card 
                         className="hover-lift" 
                         sx={{ 
@@ -307,12 +357,12 @@ const PatientAppointments = () => {
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                               <Person sx={{ color: 'var(--primary-600)', fontSize: 28 }} />
                               <Typography variant="h5" sx={{ fontWeight: 700, color: 'var(--gray-800)' }}>
-                                {appointment.doctorName}
+                                {appointment.doctorId?.name || 'Doctor'}
                               </Typography>
                             </Box>
                             <Chip 
                               label={appointment.status} 
-                              color={appointment.status === 'Confirmed' ? 'success' : 'warning'} 
+                              color={appointment.status === 'CONFIRMED' ? 'success' : appointment.status === 'BOOKED' ? 'info' : 'warning'} 
                               sx={{ fontWeight: 600, fontSize: '0.75rem' }} 
                             />
                           </Box>
@@ -325,7 +375,7 @@ const PatientAppointments = () => {
                               </Box>
                               <Box>
                                 <Typography variant="caption" sx={{ color: 'var(--gray-500)', display: 'block' }}>Hospital</Typography>
-                                <Typography variant="body1" sx={{ fontWeight: 600, color: 'var(--gray-700)' }}>{appointment.hospital}</Typography>
+                                <Typography variant="body1" sx={{ fontWeight: 600, color: 'var(--gray-700)' }}>{appointment.doctorId?.doctorProfile?.hospitalName || 'N/A'}</Typography>
                               </Box>
                             </Box>
 
@@ -336,7 +386,7 @@ const PatientAppointments = () => {
                               </Box>
                               <Box>
                                 <Typography variant="caption" sx={{ color: 'var(--gray-500)', display: 'block' }}>Specialization</Typography>
-                                <Typography variant="body1" sx={{ fontWeight: 600, color: 'var(--gray-700)' }}>{appointment.specialization}</Typography>
+                                <Typography variant="body1" sx={{ fontWeight: 600, color: 'var(--gray-700)' }}>{appointment.doctorId?.doctorProfile?.specialization || 'N/A'}</Typography>
                               </Box>
                             </Box>
 
@@ -379,8 +429,8 @@ const PatientAppointments = () => {
           onClose={() => setShowToast(false)}
           anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
         >
-          <Alert severity="success" sx={{ borderRadius: 'var(--radius-lg)', fontWeight: 600 }}>
-            ✅ Appointment booked successfully!
+          <Alert severity={toastMessage.includes('Error') ? 'error' : 'success'} sx={{ borderRadius: 'var(--radius-lg)', fontWeight: 600 }}>
+            {toastMessage || '✅ Appointment booked successfully!'}
           </Alert>
         </Snackbar>
       </Container>

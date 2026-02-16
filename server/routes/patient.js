@@ -25,12 +25,17 @@ router.get('/profile', authenticate, requireRole('PATIENT'), async (req, res) =>
 // Get patient appointments
 router.get('/appointments', authenticate, requireRole('PATIENT'), async (req, res) => {
   try {
+    console.log('FETCHING APPOINTMENTS FOR patientId:', req.user._id);
+    
     const appointments = await Appointment.find({ patientId: req.user._id })
       .populate('doctorId', 'name email doctorId doctorProfile')
       .sort({ date: -1, createdAt: -1 });
     
+    console.log('FOUND APPOINTMENTS:', appointments.length);
+    
     res.json({ success: true, data: appointments });
   } catch (error) {
+    console.error('FETCH APPOINTMENTS ERROR:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
