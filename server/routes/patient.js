@@ -27,7 +27,7 @@ router.get('/appointments', authenticate, requireRole('PATIENT'), async (req, re
   try {
     console.log('FETCHING APPOINTMENTS FOR patientId:', req.user._id);
     
-    const appointments = await Appointment.find({ patientId: req.user._id })
+    const appointments = await Appointment.find({ patientId: req.user._id, status: { $ne: 'CANCELLED' } })
       .populate('doctorId', 'name email doctorId doctorProfile')
       .sort({ date: -1, createdAt: -1 });
     

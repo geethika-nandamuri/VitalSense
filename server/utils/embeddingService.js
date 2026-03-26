@@ -1,5 +1,5 @@
 /**
- * Shared embedding service using Google's text-embedding-004 model
+ * Shared embedding service using Google's gemini-embedding-2-preview model
  * Provides a consistent interface for generating embeddings across the application
  */
 
@@ -32,14 +32,17 @@ function initGenAI() {
  */
 async function generateEmbedding(text) {
   try {
-    // Use Google's text-embedding-004 model (latest embedding model)
+    // Use gemini-embedding-2-preview with outputDimensionality 768 to match existing Pinecone index
     const ai = initGenAI();
     const model = ai.getGenerativeModel({ 
-      model: 'text-embedding-004' 
+      model: 'gemini-embedding-2-preview' 
     });
     
-    // Generate embedding using embedContent method
-    const result = await model.embedContent(text);
+    // Generate embedding — pass outputDimensionality to keep vectors at 768 dims
+    const result = await model.embedContent({
+      content: { parts: [{ text }] },
+      outputDimensionality: 768
+    });
     
     // Extract embedding values from supported response shapes:
     // - result.embedding.values
@@ -67,9 +70,9 @@ async function generateEmbedding(text) {
     console.log(`Embedding length: ${values.length}`);
     return values;
   } catch (error) {
-    // If text-embedding-004 fails, provide helpful error message
+    // If gemini-embedding-2-preview fails, provide helpful error message
     if (error.message.includes('model') || error.message.includes('not found')) {
-      console.error(`\n❌ Error: text-embedding-004 model not available.`);
+      console.error(`\n❌ Error: gemini-embedding-2-preview model not available.`);
       console.error(`   This might be due to:`);
       console.error(`   1. API key doesn't have access to embedding models`);
       console.error(`   2. Model name has changed`);

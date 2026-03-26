@@ -2,6 +2,7 @@ const express = require('express');
 const { authenticate, requireRole } = require('../middleware/auth');
 const Appointment = require('../models/Appointment');
 const User = require('../models/User');
+const { sendEmail } = require('../services/emailService');
 
 const router = express.Router();
 
@@ -42,6 +43,27 @@ router.post('/book', authenticate, requireRole('PATIENT'), async (req, res) => {
     if (existing) {
       return res.status(409).json({ success: false, message: 'This time slot is already booked' });
     }
+
+    // Check doctor's max patients per slot capacity (future active appointments only)
+    const maxPerSlot = doctor.doctorProfile?.maxPatientsPerSlot;
+    if (maxPerSlot && maxPerSlot > 0) {
+      const now = new Date();
+      const slotAppointments = await Appointment.find({
+        doctorId,
+        date: appointmentDate,
+        time,
+        status: { $in: ['BOOKED', 'CONFIRMED'] }
+      });
+      const activeCount = slotAppointments.filter(apt => {
+        const [h, m] = (apt.time || '00:00').split(':').map(Number);
+        const aptDateTime = new Date(apt.date);
+        aptDateTime.setHours(h, m, 0, 0);
+        return aptDateTime > now;
+      }).length;
+      if (activeCount >= maxPerSlot) {
+        return res.status(409).json({ success: false, message: 'This time slot is fully booked' });
+      }
+    }
     
     const appointment = new Appointment({
       patientId: req.user._id,
@@ -53,7 +75,26 @@ router.post('/book', authenticate, requireRole('PATIENT'), async (req, res) => {
     });
     
     await appointment.save();
-    
+
+    // Send booking confirmation email (non-blocking)
+    try {
+      console.log('📧 CONFIRMATION EMAIL: patient email =', req.user.email);
+      if (req.user.email) {
+        await sendEmail(
+          req.user.email,
+          'Appointment Confirmed',
+          `Hello ${req.user.name},\nYour appointment with Dr. ${doctor.name} is confirmed for ${appointmentDate.toDateString()} at ${time}.\n- VitalSense`
+        );
+        console.log('📧 CONFIRMATION EMAIL: sent successfully');
+        appointment.confirmationEmailSent = true;
+        await appointment.save();
+      } else {
+        console.log('📧 CONFIRMATION EMAIL: skipped — no email on patient account');
+      }
+    } catch (emailErr) {
+      console.error('📧 CONFIRMATION EMAIL ERROR:', emailErr.message);
+    }
+
     const populated = await Appointment.findById(appointment._id)
       .populate('doctorId', 'name email doctorId doctorProfile')
       .populate('patientId', 'name email patientId phoneNumber');
@@ -93,12 +134,22 @@ router.get('/availability', async (req, res) => {
     const end = new Date(date);
     end.setHours(23, 59, 59, 999);
     
-    // Get all appointments for this doctor on this date
+    // Get all appointments for this doctor on this date (future only, active only)
+    const now = new Date();
     const appointments = await Appointment.find({
       doctorId,
       date: { $gte: start, $lte: end },
-      status: { $in: ['BOOKED', 'CONFIRMED'] }
-    });
+      status: { $in: ['BOOKED', 'CONFIRMED'] },
+      $or: [
+        { date: { $gt: now } },
+        { date: { $gte: start, $lte: end } }
+      ]
+    }).then(apts => apts.filter(apt => {
+      const [h, m] = (apt.time || '00:00').split(':').map(Number);
+      const aptDateTime = new Date(apt.date);
+      aptDateTime.setHours(h, m, 0, 0);
+      return aptDateTime > now;
+    }));
     
     // Count appointments per time slot
     const slotCounts = {};
@@ -107,6 +158,46 @@ router.get('/availability', async (req, res) => {
     });
     
     res.json({ success: true, data: slotCounts });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Cancel appointment (patient only)
+router.patch('/:id/cancel', authenticate, requireRole('PATIENT'), async (req, res) => {
+  try {
+    const appointment = await Appointment.findById(req.params.id)
+      .populate('doctorId', 'name');
+
+    if (!appointment) {
+      return res.status(404).json({ success: false, message: 'Appointment not found' });
+    }
+
+    if (appointment.patientId.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ success: false, message: 'Not authorized to cancel this appointment' });
+    }
+
+    if (appointment.status === 'CANCELLED') {
+      return res.status(400).json({ success: false, message: 'Appointment is already cancelled' });
+    }
+
+    appointment.status = 'CANCELLED';
+    await appointment.save();
+
+    // Send cancellation email (non-blocking)
+    try {
+      if (req.user.email) {
+        await sendEmail(
+          req.user.email,
+          'Appointment Cancelled',
+          `Hello ${req.user.name},\nYour appointment with Dr. ${appointment.doctorId?.name} scheduled for ${new Date(appointment.date).toDateString()} at ${appointment.time} has been cancelled successfully.\n- VitalSense`
+        );
+      }
+    } catch (emailErr) {
+      console.error('Cancellation email error:', emailErr.message);
+    }
+
+    res.json({ success: true, message: 'Appointment cancelled successfully' });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

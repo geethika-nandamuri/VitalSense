@@ -28,7 +28,10 @@ const appointmentSchema = new mongoose.Schema({
     type: String,
     enum: ['BOOKED', 'CONFIRMED', 'CANCELLED', 'COMPLETED'],
     default: 'BOOKED'
-  }
+  },
+  confirmationEmailSent: { type: Boolean, default: false },
+  sameDayReminderSent: { type: Boolean, default: false },
+  oneHourReminderSent: { type: Boolean, default: false }
 }, {
   timestamps: true
 });

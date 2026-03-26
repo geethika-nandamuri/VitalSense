@@ -155,7 +155,7 @@ router.get('/appointments', authenticate, requireRole('DOCTOR'), async (req, res
     console.log('Doctor Email:', req.user.email);
     console.log('Query Date:', date);
     
-    let query = { doctorId: req.user._id };
+    let query = { doctorId: req.user._id, status: { $ne: 'CANCELLED' } };
     
     // If date provided, filter by that specific date
     if (date) {

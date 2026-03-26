@@ -16,7 +16,12 @@ import {
   Snackbar,
   Tabs,
   Tab,
-  TextField
+  TextField,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions
 } from '@mui/material';
 import {
   CalendarToday,
@@ -59,12 +64,55 @@ const PatientAppointments = () => {
   // Tab state
   const [activeTab, setActiveTab] = useState(0);
 
+  // Sub-tab inside "My Appointments": 0 = Upcoming, 1 = Past
+  const [apptSubTab, setApptSubTab] = useState(0);
+
+  /**
+   * Returns true if the appointment date+time is strictly in the past.
+   * apt.date — ISO string from MongoDB e.g. "2025-07-10T00:00:00.000Z"
+   * apt.time — 24-hour string e.g. "14:30" or 12-hour e.g. "2:30 PM"
+   * Reconstructs a local datetime to avoid UTC-shift bugs.
+   */
+  const isAppointmentPast = (apt) => {
+    try {
+      const d = new Date(apt.date);
+      const year  = d.getFullYear();
+      const month = d.getMonth();
+      const day   = d.getDate();
+      let hours = 0, minutes = 0;
+      if (apt.time) {
+        const timeStr = String(apt.time).trim();
+        if (/^\d{1,2}:\d{2}$/.test(timeStr)) {
+          [hours, minutes] = timeStr.split(':').map(Number);
+        } else {
+          const match = timeStr.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+          if (match) {
+            hours   = parseInt(match[1], 10);
+            minutes = parseInt(match[2], 10);
+            const period = match[3].toUpperCase();
+            if (period === 'AM' && hours === 12) hours = 0;
+            if (period === 'PM' && hours !== 12) hours += 12;
+          }
+        }
+      }
+      return new Date(year, month, day, hours, minutes, 0, 0) < Date.now();
+    } catch {
+      return false;
+    }
+  };
+
+  const { upcomingAppointments, pastAppointments } = useMemo(() => ({
+    upcomingAppointments: myAppointments.filter(apt => !isAppointmentPast(apt)),
+    pastAppointments:     myAppointments.filter(apt =>  isAppointmentPast(apt)),
+  }), [myAppointments]);
+
   // Form state
   const [selectedDoctorId, setSelectedDoctorId] = useState('');
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedTime, setSelectedTime] = useState('');
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
+  const [cancelDialogId, setCancelDialogId] = useState(null);
 
   useEffect(() => {
     fetchDoctors();
@@ -171,6 +219,20 @@ const PatientAppointments = () => {
       }
       
       setToastMessage(errorMessage);
+      setShowToast(true);
+    }
+  };
+
+  const handleCancelAppointment = async () => {
+    try {
+      await api.patch(`/api/appointments/${cancelDialogId}/cancel`);
+      setCancelDialogId(null);
+      setToastMessage('Appointment cancelled successfully!');
+      setShowToast(true);
+      await fetchMyAppointments();
+    } catch (error) {
+      setCancelDialogId(null);
+      setToastMessage(error.response?.data?.message || 'Error cancelling appointment');
       setShowToast(true);
     }
   };
@@ -342,95 +404,220 @@ const PatientAppointments = () => {
           {/* Tab 2: My Appointments */}
           {activeTab === 1 && (
             <CardContent sx={{ p: 4 }}>
-              {myAppointments.length === 0 ? (
-                <Box sx={{ textAlign: 'center', py: 6 }}>
-                  <CalendarToday sx={{ fontSize: 64, color: 'var(--gray-300)', mb: 2 }} />
-                  <Typography variant="h6" sx={{ color: 'var(--gray-500)' }}>
-                    No appointments booked yet
-                  </Typography>
-                </Box>
-              ) : (
-                <Grid container spacing={3}>
-                  {myAppointments.map((appointment, index) => (
-                    <Grid item xs={12} md={6} key={appointment._id}>
-                      <Card 
-                        className="hover-lift" 
-                        sx={{ 
-                          border: '1px solid var(--gray-200)',
-                          borderRadius: 'var(--radius-xl)',
-                          boxShadow: 'var(--shadow-sm)',
-                          animationDelay: `${index * 0.1}s`
-                        }}
-                      >
-                        <CardContent>
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                              <Person sx={{ color: 'var(--primary-600)', fontSize: 28 }} />
-                              <Typography variant="h5" sx={{ fontWeight: 700, color: 'var(--gray-800)' }}>
-                                {appointment.doctorId?.name || 'Doctor'}
-                              </Typography>
-                            </Box>
-                            <Chip 
-                              label={appointment.status} 
-                              color={appointment.status === 'CONFIRMED' ? 'success' : appointment.status === 'BOOKED' ? 'info' : 'warning'} 
-                              sx={{ fontWeight: 600, fontSize: '0.75rem' }} 
-                            />
-                          </Box>
+              {/* Upcoming / Past sub-tabs */}
+              <Tabs
+                value={apptSubTab}
+                onChange={(e, v) => setApptSubTab(v)}
+                sx={{
+                  mb: 3,
+                  '& .MuiTab-root': { textTransform: 'none', fontWeight: 600 },
+                  '& .MuiTabs-indicator': { height: 3, borderRadius: 2 }
+                }}
+              >
+                <Tab label={`Upcoming (${upcomingAppointments.length})`} />
+                <Tab label={`Past (${pastAppointments.length})`} />
+              </Tabs>
 
-                          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-                            {/* Hospital */}
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                              <Box sx={{ width: 40, height: 40, borderRadius: 'var(--radius-lg)', background: 'linear-gradient(135deg, #fce7f3 0%, #fbcfe8 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                <LocalHospital sx={{ color: '#be185d', fontSize: 20 }} />
+              {/* Upcoming list */}
+              {apptSubTab === 0 && (
+                upcomingAppointments.length === 0 ? (
+                  <Box sx={{ textAlign: 'center', py: 6 }}>
+                    <CalendarToday sx={{ fontSize: 64, color: 'var(--gray-300)', mb: 2 }} />
+                    <Typography variant="h6" sx={{ color: 'var(--gray-500)' }}>
+                      No upcoming appointments
+                    </Typography>
+                  </Box>
+                ) : (
+                  <Grid container spacing={3}>
+                    {upcomingAppointments.map((appointment, index) => (
+                      <Grid item xs={12} md={6} key={appointment._id}>
+                        <Card
+                          className="hover-lift"
+                          sx={{
+                            border: '1px solid var(--gray-200)',
+                            borderRadius: 'var(--radius-xl)',
+                            boxShadow: 'var(--shadow-sm)',
+                            animationDelay: `${index * 0.1}s`
+                          }}
+                        >
+                          <CardContent>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <Person sx={{ color: 'var(--primary-600)', fontSize: 28 }} />
+                                <Typography variant="h5" sx={{ fontWeight: 700, color: 'var(--gray-800)' }}>
+                                  {appointment.doctorId?.name || 'Doctor'}
+                                </Typography>
                               </Box>
-                              <Box>
-                                <Typography variant="caption" sx={{ color: 'var(--gray-500)', display: 'block' }}>Hospital</Typography>
-                                <Typography variant="body1" sx={{ fontWeight: 600, color: 'var(--gray-700)' }}>{appointment.doctorId?.doctorProfile?.hospitalName || 'N/A'}</Typography>
-                              </Box>
-                            </Box>
-
-                            {/* Specialization */}
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                              <Box sx={{ width: 40, height: 40, borderRadius: 'var(--radius-lg)', background: 'var(--secondary-100)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                <Person sx={{ color: 'var(--secondary-600)', fontSize: 20 }} />
-                              </Box>
-                              <Box>
-                                <Typography variant="caption" sx={{ color: 'var(--gray-500)', display: 'block' }}>Specialization</Typography>
-                                <Typography variant="body1" sx={{ fontWeight: 600, color: 'var(--gray-700)' }}>{appointment.doctorId?.doctorProfile?.specialization || 'N/A'}</Typography>
-                              </Box>
+                              <Chip
+                                label={appointment.status}
+                                color={appointment.status === 'CONFIRMED' ? 'success' : appointment.status === 'BOOKED' ? 'info' : 'warning'}
+                                sx={{ fontWeight: 600, fontSize: '0.75rem' }}
+                              />
                             </Box>
 
-                            {/* Date */}
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                              <Box sx={{ width: 40, height: 40, borderRadius: 'var(--radius-lg)', background: 'var(--primary-100)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                <CalendarToday sx={{ color: 'var(--primary-600)', fontSize: 20 }} />
+                            {(appointment.status === 'BOOKED' || appointment.status === 'CONFIRMED') && (
+                              <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
+                                <Button
+                                  variant="outlined"
+                                  color="error"
+                                  size="small"
+                                  startIcon={<Cancel />}
+                                  onClick={() => setCancelDialogId(appointment._id)}
+                                  sx={{ borderRadius: 'var(--radius-lg)', textTransform: 'none', fontWeight: 600 }}
+                                >
+                                  Cancel Appointment
+                                </Button>
                               </Box>
-                              <Box>
-                                <Typography variant="caption" sx={{ color: 'var(--gray-500)', display: 'block' }}>Date</Typography>
-                                <Typography variant="body1" sx={{ fontWeight: 600, color: 'var(--gray-700)' }}>{formatDate(appointment.date)}</Typography>
-                              </Box>
-                            </Box>
+                            )}
 
-                            {/* Time */}
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                              <Box sx={{ width: 40, height: 40, borderRadius: 'var(--radius-lg)', background: 'var(--accent-100)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                <AccessTime sx={{ color: 'var(--accent-600)', fontSize: 20 }} />
+                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <Box sx={{ width: 40, height: 40, borderRadius: 'var(--radius-lg)', background: 'linear-gradient(135deg, #fce7f3 0%, #fbcfe8 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <LocalHospital sx={{ color: '#be185d', fontSize: 20 }} />
+                                </Box>
+                                <Box>
+                                  <Typography variant="caption" sx={{ color: 'var(--gray-500)', display: 'block' }}>Hospital</Typography>
+                                  <Typography variant="body1" sx={{ fontWeight: 600, color: 'var(--gray-700)' }}>{appointment.doctorId?.doctorProfile?.hospitalName || 'N/A'}</Typography>
+                                </Box>
                               </Box>
-                              <Box>
-                                <Typography variant="caption" sx={{ color: 'var(--gray-500)', display: 'block' }}>Time</Typography>
-                                <Typography variant="body1" sx={{ fontWeight: 600, color: 'var(--gray-700)' }}>{formatTime(appointment.time)}</Typography>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <Box sx={{ width: 40, height: 40, borderRadius: 'var(--radius-lg)', background: 'var(--secondary-100)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <Person sx={{ color: 'var(--secondary-600)', fontSize: 20 }} />
+                                </Box>
+                                <Box>
+                                  <Typography variant="caption" sx={{ color: 'var(--gray-500)', display: 'block' }}>Specialization</Typography>
+                                  <Typography variant="body1" sx={{ fontWeight: 600, color: 'var(--gray-700)' }}>{appointment.doctorId?.doctorProfile?.specialization || 'N/A'}</Typography>
+                                </Box>
+                              </Box>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <Box sx={{ width: 40, height: 40, borderRadius: 'var(--radius-lg)', background: 'var(--primary-100)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <CalendarToday sx={{ color: 'var(--primary-600)', fontSize: 20 }} />
+                                </Box>
+                                <Box>
+                                  <Typography variant="caption" sx={{ color: 'var(--gray-500)', display: 'block' }}>Date</Typography>
+                                  <Typography variant="body1" sx={{ fontWeight: 600, color: 'var(--gray-700)' }}>{formatDate(appointment.date)}</Typography>
+                                </Box>
+                              </Box>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <Box sx={{ width: 40, height: 40, borderRadius: 'var(--radius-lg)', background: 'var(--accent-100)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <AccessTime sx={{ color: 'var(--accent-600)', fontSize: 20 }} />
+                                </Box>
+                                <Box>
+                                  <Typography variant="caption" sx={{ color: 'var(--gray-500)', display: 'block' }}>Time</Typography>
+                                  <Typography variant="body1" sx={{ fontWeight: 600, color: 'var(--gray-700)' }}>{formatTime(appointment.time)}</Typography>
+                                </Box>
                               </Box>
                             </Box>
-                          </Box>
-                        </CardContent>
-                      </Card>
-                    </Grid>
-                  ))}
-                </Grid>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                    ))}
+                  </Grid>
+                )
+              )}
+
+              {/* Past list */}
+              {apptSubTab === 1 && (
+                pastAppointments.length === 0 ? (
+                  <Box sx={{ textAlign: 'center', py: 6 }}>
+                    <CalendarToday sx={{ fontSize: 64, color: 'var(--gray-300)', mb: 2 }} />
+                    <Typography variant="h6" sx={{ color: 'var(--gray-500)' }}>
+                      No past appointments
+                    </Typography>
+                  </Box>
+                ) : (
+                  <Grid container spacing={3}>
+                    {pastAppointments.map((appointment, index) => (
+                      <Grid item xs={12} md={6} key={appointment._id}>
+                        <Card
+                          sx={{
+                            border: '1px solid var(--gray-200)',
+                            borderRadius: 'var(--radius-xl)',
+                            boxShadow: 'var(--shadow-sm)',
+                            opacity: 0.85,
+                            animationDelay: `${index * 0.1}s`
+                          }}
+                        >
+                          <CardContent>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <Person sx={{ color: 'var(--gray-400)', fontSize: 28 }} />
+                                <Typography variant="h5" sx={{ fontWeight: 700, color: 'var(--gray-600)' }}>
+                                  {appointment.doctorId?.name || 'Doctor'}
+                                </Typography>
+                              </Box>
+                              <Chip
+                                label={appointment.status}
+                                color={appointment.status === 'COMPLETED' ? 'default' : appointment.status === 'CANCELLED' ? 'error' : 'default'}
+                                sx={{ fontWeight: 600, fontSize: '0.75rem' }}
+                              />
+                            </Box>
+                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <Box sx={{ width: 40, height: 40, borderRadius: 'var(--radius-lg)', background: 'linear-gradient(135deg, #fce7f3 0%, #fbcfe8 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <LocalHospital sx={{ color: '#be185d', fontSize: 20 }} />
+                                </Box>
+                                <Box>
+                                  <Typography variant="caption" sx={{ color: 'var(--gray-500)', display: 'block' }}>Hospital</Typography>
+                                  <Typography variant="body1" sx={{ fontWeight: 600, color: 'var(--gray-700)' }}>{appointment.doctorId?.doctorProfile?.hospitalName || 'N/A'}</Typography>
+                                </Box>
+                              </Box>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <Box sx={{ width: 40, height: 40, borderRadius: 'var(--radius-lg)', background: 'var(--secondary-100)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <Person sx={{ color: 'var(--secondary-600)', fontSize: 20 }} />
+                                </Box>
+                                <Box>
+                                  <Typography variant="caption" sx={{ color: 'var(--gray-500)', display: 'block' }}>Specialization</Typography>
+                                  <Typography variant="body1" sx={{ fontWeight: 600, color: 'var(--gray-700)' }}>{appointment.doctorId?.doctorProfile?.specialization || 'N/A'}</Typography>
+                                </Box>
+                              </Box>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <Box sx={{ width: 40, height: 40, borderRadius: 'var(--radius-lg)', background: 'var(--primary-100)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <CalendarToday sx={{ color: 'var(--primary-600)', fontSize: 20 }} />
+                                </Box>
+                                <Box>
+                                  <Typography variant="caption" sx={{ color: 'var(--gray-500)', display: 'block' }}>Date</Typography>
+                                  <Typography variant="body1" sx={{ fontWeight: 600, color: 'var(--gray-700)' }}>{formatDate(appointment.date)}</Typography>
+                                </Box>
+                              </Box>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <Box sx={{ width: 40, height: 40, borderRadius: 'var(--radius-lg)', background: 'var(--accent-100)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <AccessTime sx={{ color: 'var(--accent-600)', fontSize: 20 }} />
+                                </Box>
+                                <Box>
+                                  <Typography variant="caption" sx={{ color: 'var(--gray-500)', display: 'block' }}>Time</Typography>
+                                  <Typography variant="body1" sx={{ fontWeight: 600, color: 'var(--gray-700)' }}>{formatTime(appointment.time)}</Typography>
+                                </Box>
+                              </Box>
+                            </Box>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                    ))}
+                  </Grid>
+                )
               )}
             </CardContent>
           )}
         </Card>
+
+        {/* Cancel Confirmation Dialog */}
+        <Dialog open={!!cancelDialogId} onClose={() => setCancelDialogId(null)}>
+          <DialogTitle>Cancel Appointment</DialogTitle>
+          <DialogContent>
+            <DialogContentText>
+              Are you sure you want to cancel this appointment?
+            </DialogContentText>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setCancelDialogId(null)}>Keep It</Button>
+            <Button onClick={handleCancelAppointment} color="error" variant="contained"
+              sx={{ borderRadius: 'var(--radius-lg)', textTransform: 'none', fontWeight: 600 }}
+            >
+              Yes, Cancel
+            </Button>
+          </DialogActions>
+        </Dialog>
 
         {/* Success Toast */}
         <Snackbar

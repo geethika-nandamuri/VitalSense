@@ -141,7 +141,7 @@ Note: This information is for wellness and educational purposes only and does no
  */
 async function seedEmbeddings() {
   console.log('🌱 Starting Pinecone embedding seed process...\n');
-  console.log('📝 Note: Ensure your Pinecone index is created with dimension 768 (text-embedding-004 output dimension)\n');
+  console.log('📝 Note: Ensure your Pinecone index is created with dimension 768 (gemini-embedding-2-preview with outputDimensionality=768)\n');
 
   // Check environment variables
   if (!process.env.PINECONE_API_KEY) {

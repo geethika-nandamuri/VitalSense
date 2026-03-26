@@ -56,6 +56,14 @@ async function startServer() {
       useUnifiedTopology: true,
     });
     console.log('MongoDB connected');
+
+    // Start email scheduler
+    try {
+      const { startEmailScheduler } = require('./scheduler/emailScheduler');
+      startEmailScheduler();
+    } catch (schedulerErr) {
+      console.error('Email scheduler failed to start:', schedulerErr.message);
+    }
   } catch (err) {
     console.error('MongoDB connection error:', err);
     process.exit(1);

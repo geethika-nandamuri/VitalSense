@@ -1,6 +1,8 @@
 const Hospital = require('../models/Hospital');
 const Doctor = require('../models/Doctor');
 const Appointment = require('../models/Appointment');
+const User = require('../models/User');
+const { sendEmail } = require('../services/emailService');
 
 // Get hospitals with optional city filter
 const getHospitals = async (req, res) => {
@@ -130,7 +132,23 @@ const bookAppointment = async (req, res) => {
     });
     
     await appointment.save();
-    
+
+    // Send confirmation email (non-blocking)
+    try {
+      const patient = await User.findById(patientId).select('name email');
+      if (patient?.email) {
+        await sendEmail(
+          patient.email,
+          'Appointment Confirmed',
+          `Hello ${patient.name},\nYour appointment with Dr. ${doctor.name} is confirmed for ${appointmentDate.toDateString()} at ${timeSlot}.\n- VitalSense`
+        );
+        appointment.confirmationEmailSent = true;
+        await appointment.save();
+      }
+    } catch (emailErr) {
+      console.error('Confirmation email error:', emailErr.message);
+    }
+
     // Populate appointment details for response
     const populatedAppointment = await Appointment.findById(appointment._id)
       .populate('doctorId', 'name specialization fee')
