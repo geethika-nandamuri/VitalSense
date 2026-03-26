@@ -7,6 +7,38 @@ const { checkEmbeddingsExist } = require('./config/pinecone');
 
 dotenv.config();
 
+// Validate critical environment variables for production
+console.log('\n🔍 ENVIRONMENT VARIABLES CHECK:');
+const requiredEnvVars = {
+  'MONGODB_URI': process.env.MONGODB_URI,
+  'JWT_SECRET': process.env.JWT_SECRET,
+  'EMAIL_USER': process.env.EMAIL_USER,
+  'EMAIL_PASS': process.env.EMAIL_PASS
+};
+
+const missingVars = Object.entries(requiredEnvVars)
+  .filter(([key, value]) => !value)
+  .map(([key]) => key);
+
+if (missingVars.length > 0) {
+  console.error('❌ MISSING ENVIRONMENT VARIABLES:');
+  missingVars.forEach(varName => {
+    console.error(`   - ${varName}`);
+  });
+  
+  if (process.env.NODE_ENV === 'production') {
+    console.error('\n💥 CRITICAL: Missing environment variables in production. Exiting...\n');
+    process.exit(1);
+  } else {
+    console.warn('\n⚠️  WARNING: Missing environment variables in development mode\n');
+  }
+} else {
+  console.log('✅ All required environment variables are set');
+  console.log('   EMAIL_USER:', process.env.EMAIL_USER);
+  console.log('   NODE_ENV:', process.env.NODE_ENV || 'development');
+  console.log('');
+}
+
 const app = express();
 
 // Middleware

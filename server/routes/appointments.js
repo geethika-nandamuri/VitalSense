@@ -78,21 +78,50 @@ router.post('/book', authenticate, requireRole('PATIENT'), async (req, res) => {
 
     // Send booking confirmation email (non-blocking)
     try {
-      console.log('📧 CONFIRMATION EMAIL: patient email =', req.user.email);
-      if (req.user.email) {
-        await sendEmail(
-          req.user.email,
-          'Appointment Confirmed',
-          `Hello ${req.user.name},\nYour appointment with Dr. ${doctor.name} is confirmed for ${appointmentDate.toDateString()} at ${time}.\n- VitalSense`
-        );
-        console.log('📧 CONFIRMATION EMAIL: sent successfully');
-        appointment.confirmationEmailSent = true;
-        await appointment.save();
-      } else {
+      console.log('📧 CONFIRMATION EMAIL ATTEMPT:');
+      console.log('   Patient Email:', req.user.email);
+      console.log('   Doctor Name:', doctor.name);
+      console.log('   Environment Check:');
+      console.log('     EMAIL_USER:', process.env.EMAIL_USER ? '✅ Set' : '❌ Missing');
+      console.log('     EMAIL_PASS:', process.env.EMAIL_PASS ? '✅ Set' : '❌ Missing');
+      
+      if (!req.user.email) {
         console.log('📧 CONFIRMATION EMAIL: skipped — no email on patient account');
+      } else if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+        console.error('📧 CONFIRMATION EMAIL: skipped — email credentials not configured');
+      } else {
+        const emailSent = await sendEmail(
+          req.user.email,
+          'Appointment Confirmed - VitalSense',
+          `Hello ${req.user.name},
+
+Your appointment has been confirmed!
+
+Details:
+• Doctor: Dr. ${doctor.name}
+• Date: ${appointmentDate.toDateString()}
+• Time: ${time}
+
+Thank you for choosing VitalSense.
+
+Best regards,
+VitalSense Team`
+        );
+        
+        if (emailSent) {
+          console.log('📧 CONFIRMATION EMAIL: sent successfully');
+          appointment.confirmationEmailSent = true;
+          await appointment.save();
+        } else {
+          console.error('📧 CONFIRMATION EMAIL: failed to send (check detailed logs above)');
+          // Don't fail the appointment booking if email fails
+        }
       }
     } catch (emailErr) {
-      console.error('📧 CONFIRMATION EMAIL ERROR:', emailErr.message);
+      console.error('📧 CONFIRMATION EMAIL ERROR:');
+      console.error('   Error Message:', emailErr.message);
+      console.error('   Error Stack:', emailErr.stack);
+      // Don't fail the appointment booking if email fails
     }
 
     const populated = await Appointment.findById(appointment._id)
@@ -186,15 +215,42 @@ router.patch('/:id/cancel', authenticate, requireRole('PATIENT'), async (req, re
 
     // Send cancellation email (non-blocking)
     try {
-      if (req.user.email) {
-        await sendEmail(
+      console.log('📧 CANCELLATION EMAIL ATTEMPT:');
+      console.log('   Patient Email:', req.user.email);
+      
+      if (!req.user.email) {
+        console.log('📧 CANCELLATION EMAIL: skipped — no email on patient account');
+      } else if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+        console.error('📧 CANCELLATION EMAIL: skipped — email credentials not configured');
+      } else {
+        const emailSent = await sendEmail(
           req.user.email,
-          'Appointment Cancelled',
-          `Hello ${req.user.name},\nYour appointment with Dr. ${appointment.doctorId?.name} scheduled for ${new Date(appointment.date).toDateString()} at ${appointment.time} has been cancelled successfully.\n- VitalSense`
+          'Appointment Cancelled - VitalSense',
+          `Hello ${req.user.name},
+
+Your appointment has been cancelled successfully.
+
+Cancelled Appointment Details:
+• Doctor: Dr. ${appointment.doctorId?.name}
+• Date: ${new Date(appointment.date).toDateString()}
+• Time: ${appointment.time}
+
+If you need to reschedule, please book a new appointment through the VitalSense platform.
+
+Best regards,
+VitalSense Team`
         );
+        
+        if (emailSent) {
+          console.log('📧 CANCELLATION EMAIL: sent successfully');
+        } else {
+          console.error('📧 CANCELLATION EMAIL: failed to send (check detailed logs above)');
+        }
       }
     } catch (emailErr) {
-      console.error('Cancellation email error:', emailErr.message);
+      console.error('📧 CANCELLATION EMAIL ERROR:');
+      console.error('   Error Message:', emailErr.message);
+      console.error('   Error Stack:', emailErr.stack);
     }
 
     res.json({ success: true, message: 'Appointment cancelled successfully' });
