@@ -88,6 +88,7 @@ async function startServer() {
       useUnifiedTopology: true,
     });
     console.log('MongoDB connected');
+    console.log("DB Name:", mongoose.connection.name);
 
     // Start email scheduler
     try {
