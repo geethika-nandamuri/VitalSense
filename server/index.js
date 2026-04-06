@@ -56,6 +56,7 @@ app.use('/api/recommendations', require('./routes/recommendations'));
 app.use('/api/trends', require('./routes/trends'));
 app.use('/api/summary', require('./routes/summary'));
 app.use('/api/appointments', require('./routes/appointments'));
+app.use('/api/reminders', require('./routes/reminders'));
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -83,19 +84,16 @@ async function startServer() {
 
   // Connect to MongoDB
   try {
-    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/vitalsense', {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    });
+    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/vitalsense');
     console.log('MongoDB connected');
     console.log("DB Name:", mongoose.connection.name);
 
-    // Start email scheduler
+    // Mark any already-past appointments as COMPLETED on startup
     try {
-      const { startEmailScheduler } = require('./scheduler/emailScheduler');
-      startEmailScheduler();
+      const { markPastAppointmentsCompleted } = require('./scheduler/emailScheduler');
+      await markPastAppointmentsCompleted();
     } catch (schedulerErr) {
-      console.error('Email scheduler failed to start:', schedulerErr.message);
+      console.error('markPastAppointmentsCompleted error:', schedulerErr.message);
     }
   } catch (err) {
     console.error('MongoDB connection error:', err);

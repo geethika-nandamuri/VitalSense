@@ -44,22 +44,15 @@ router.post('/book', authenticate, requireRole('PATIENT'), async (req, res) => {
       return res.status(409).json({ success: false, message: 'This time slot is already booked' });
     }
 
-    // Check doctor's max patients per slot capacity (future active appointments only)
+    // Check doctor's max patients per slot — count active bookings directly in DB
     const maxPerSlot = doctor.doctorProfile?.maxPatientsPerSlot;
     if (maxPerSlot && maxPerSlot > 0) {
-      const now = new Date();
-      const slotAppointments = await Appointment.find({
+      const activeCount = await Appointment.countDocuments({
         doctorId,
         date: appointmentDate,
         time,
         status: { $in: ['BOOKED', 'CONFIRMED'] }
       });
-      const activeCount = slotAppointments.filter(apt => {
-        const [h, m] = (apt.time || '00:00').split(':').map(Number);
-        const aptDateTime = new Date(apt.date);
-        aptDateTime.setHours(h, m, 0, 0);
-        return aptDateTime > now;
-      }).length;
       if (activeCount >= maxPerSlot) {
         return res.status(409).json({ success: false, message: 'This time slot is fully booked' });
       }
@@ -149,43 +142,34 @@ VitalSense Team`
 });
 
 // Get availability for a doctor on a specific date
+// Returns { "09:00": 2, "10:30": 1, ... } — count of active bookings per slot
 router.get('/availability', async (req, res) => {
   try {
     const { doctorId, date } = req.query;
-    
     if (!doctorId || !date) {
       return res.status(400).json({ success: false, message: 'Doctor ID and date are required' });
     }
-    
-    // Normalize date to start/end of day
+
     const start = new Date(date);
     start.setHours(0, 0, 0, 0);
     const end = new Date(date);
     end.setHours(23, 59, 59, 999);
-    
-    // Get all appointments for this doctor on this date (future only, active only)
-    const now = new Date();
-    const appointments = await Appointment.find({
-      doctorId,
-      date: { $gte: start, $lte: end },
-      status: { $in: ['BOOKED', 'CONFIRMED'] },
-      $or: [
-        { date: { $gt: now } },
-        { date: { $gte: start, $lte: end } }
-      ]
-    }).then(apts => apts.filter(apt => {
-      const [h, m] = (apt.time || '00:00').split(':').map(Number);
-      const aptDateTime = new Date(apt.date);
-      aptDateTime.setHours(h, m, 0, 0);
-      return aptDateTime > now;
-    }));
-    
-    // Count appointments per time slot
+
+    // Count only active (non-cancelled) bookings per slot — all filtering in DB
+    const counts = await Appointment.aggregate([
+      {
+        $match: {
+          doctorId: new (require('mongoose').Types.ObjectId)(doctorId),
+          date: { $gte: start, $lte: end },
+          status: { $in: ['BOOKED', 'CONFIRMED'] }
+        }
+      },
+      { $group: { _id: '$time', count: { $sum: 1 } } }
+    ]);
+
     const slotCounts = {};
-    appointments.forEach(apt => {
-      slotCounts[apt.time] = (slotCounts[apt.time] || 0) + 1;
-    });
-    
+    counts.forEach(({ _id, count }) => { slotCounts[_id] = count; });
+
     res.json({ success: true, data: slotCounts });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

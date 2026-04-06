@@ -110,6 +110,8 @@ const PatientAppointments = () => {
   const [selectedDoctorId, setSelectedDoctorId] = useState('');
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedTime, setSelectedTime] = useState('');
+  const [slotAvailability, setSlotAvailability] = useState({}); // { "09:00": 2, ... } active booking counts
+  const [availabilityLoading, setAvailabilityLoading] = useState(false);
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [cancelDialogId, setCancelDialogId] = useState(null);
@@ -149,11 +151,25 @@ const PatientAppointments = () => {
     setSelectedDoctorId(e.target.value);
     setSelectedDate('');
     setSelectedTime('');
+    setSlotAvailability({});
   };
 
-  const handleDateChange = (e) => {
-    setSelectedDate(e.target.value);
+  const handleDateChange = async (e) => {
+    const date = e.target.value;
+    setSelectedDate(date);
     setSelectedTime('');
+    setSlotAvailability({});
+    if (selectedDoctorId && date) {
+      try {
+        setAvailabilityLoading(true);
+        const res = await api.get(`/api/appointments/availability?doctorId=${selectedDoctorId}&date=${date}`);
+        setSlotAvailability(res.data.data || {});
+      } catch {
+        setSlotAvailability({});
+      } finally {
+        setAvailabilityLoading(false);
+      }
+    }
   };
 
   const handleTimeChange = (e) => {
@@ -190,13 +206,18 @@ const PatientAppointments = () => {
         throw new Error('Booking failed');
       }
 
-      // Refresh appointments list
+      // Refresh appointments list and slot availability
       await fetchMyAppointments();
+      if (selectedDoctorId && selectedDate) {
+        const res = await api.get(`/api/appointments/availability?doctorId=${selectedDoctorId}&date=${selectedDate}`);
+        setSlotAvailability(res.data.data || {});
+      }
 
       // Reset form
       setSelectedDoctorId('');
       setSelectedDate('');
       setSelectedTime('');
+      setSlotAvailability({});
       
       setToastMessage('Appointment booked successfully!');
       setShowToast(true);
@@ -224,14 +245,19 @@ const PatientAppointments = () => {
   };
 
   const handleCancelAppointment = async () => {
+    const idToCancel = cancelDialogId;
+    setCancelDialogId(null);
     try {
-      await api.patch(`/api/appointments/${cancelDialogId}/cancel`);
-      setCancelDialogId(null);
+      await api.patch(`/api/appointments/${idToCancel}/cancel`);
       setToastMessage('Appointment cancelled successfully!');
       setShowToast(true);
+      // Refresh list and slot availability so freed slot shows immediately
       await fetchMyAppointments();
+      if (selectedDoctorId && selectedDate) {
+        const res = await api.get(`/api/appointments/availability?doctorId=${selectedDoctorId}&date=${selectedDate}`);
+        setSlotAvailability(res.data.data || {});
+      }
     } catch (error) {
-      setCancelDialogId(null);
       setToastMessage(error.response?.data?.message || 'Error cancelling appointment');
       setShowToast(true);
     }
@@ -348,7 +374,7 @@ const PatientAppointments = () => {
 
                 {/* Time */}
                 <Grid item xs={12} md={6}>
-                  <FormControl fullWidth disabled={!selectedDate}>
+                  <FormControl fullWidth disabled={!selectedDate || availabilityLoading}>
                     <InputLabel>Select Time</InputLabel>
                     <Select
                       value={selectedTime}
@@ -359,14 +385,24 @@ const PatientAppointments = () => {
                       {timeSlots.length === 0 ? (
                         <MenuItem disabled>No slots available</MenuItem>
                       ) : (
-                        timeSlots.map(slot => (
-                          <MenuItem key={slot} value={slot}>
-                            {formatTime(slot)}
-                          </MenuItem>
-                        ))
+                        timeSlots.map(slot => {
+                          const booked = slotAvailability[slot] || 0;
+                          const max = selectedDoctorProfile?.maxPatientsPerSlot || 1;
+                          const isFull = booked >= max;
+                          return (
+                            <MenuItem key={slot} value={slot} disabled={isFull}>
+                              {formatTime(slot)}{isFull ? ' — Full' : booked > 0 ? ` (${max - booked} left)` : ''}
+                            </MenuItem>
+                          );
+                        })
                       )}
                     </Select>
                   </FormControl>
+                  {availabilityLoading && (
+                    <Typography variant="caption" sx={{ color: 'var(--gray-500)', mt: 0.5, display: 'block' }}>
+                      Checking availability...
+                    </Typography>
+                  )}
                   {!selectedDate && (
                     <Typography variant="caption" sx={{ color: 'var(--gray-500)', mt: 0.5, display: 'block' }}>
                       Please select a date first
