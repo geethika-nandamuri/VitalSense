@@ -63,8 +63,8 @@ const getDoctors = async (req, res) => {
 // Book appointment
 const bookAppointment = async (req, res) => {
   try {
-    const { doctorId, hospitalId, date, timeSlot, reason } = req.body;
-    const patientId = req.userId || req.headers['x-patient-id'];
+    const { doctorId, hospitalId, date, time, reason } = req.body;
+    const patientId = req.user?._id || req.headers['x-patient-id'];
     
     if (!patientId) {
       return res.status(401).json({
@@ -74,10 +74,10 @@ const bookAppointment = async (req, res) => {
     }
     
     // Validate required fields
-    if (!doctorId || !hospitalId || !date || !timeSlot) {
+    if (!doctorId || !hospitalId || !date || !time) {
       return res.status(400).json({
         success: false,
-        message: 'Missing required fields: doctorId, hospitalId, date, timeSlot'
+        message: 'Missing required fields: doctorId, hospitalId, date, time'
       });
     }
     
@@ -99,7 +99,7 @@ const bookAppointment = async (req, res) => {
       });
     }
     
-    if (!doctor.availableSlots.includes(timeSlot)) {
+    if (!doctor.availableSlots.includes(time)) {
       return res.status(400).json({
         success: false,
         message: 'Selected time slot is not available for this doctor'
@@ -110,7 +110,7 @@ const bookAppointment = async (req, res) => {
     const existingAppointment = await Appointment.findOne({
       doctorId,
       date: appointmentDate,
-      timeSlot,
+      time,
       status: { $in: ['Pending', 'Confirmed'] }
     });
     
@@ -127,11 +127,12 @@ const bookAppointment = async (req, res) => {
       doctorId,
       hospitalId,
       date: appointmentDate,
-      timeSlot,
+      time,
       reason: reason || ''
     });
     
     await appointment.save();
+    console.log('✅ appointmentController: saved', appointment._id);
 
     // Send confirmation email (non-blocking)
     try {

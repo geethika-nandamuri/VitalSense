@@ -29,7 +29,6 @@ import {
   CalendarToday,
   Biotech,
   TrendingUp,
-  Recommend,
   Summarize,
   Person,
   Logout
@@ -71,7 +70,6 @@ const Navbar = () => {
     { text: 'Appointments', path: '/appointments', icon: <CalendarToday /> },
     { text: 'Biomarkers', path: '/biomarkers', icon: <Biotech /> },
     { text: 'Trends', path: '/trends', icon: <TrendingUp /> },
-    { text: 'Recommendations', path: '/recommendations', icon: <Recommend /> },
   ];
 
   const drawer = (

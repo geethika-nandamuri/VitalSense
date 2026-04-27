@@ -28,8 +28,16 @@ router.post('/book', authenticate, requireRole('PATIENT'), async (req, res) => {
       return res.status(404).json({ success: false, message: 'Doctor not found' });
     }
     
-    // Normalize date to start of day
-    const appointmentDate = new Date(date);
+    // Combine date + time into a single precise DateTime for storage and comparison
+    // e.g. date="2025-07-10", time="14:30" → 2025-07-10T14:30:00 local → stored as UTC
+    const appointmentDateTime = new Date(`${date}T${time}:00`);
+    if (isNaN(appointmentDateTime.getTime())) {
+      return res.status(400).json({ success: false, message: 'Invalid date or time format' });
+    }
+    console.log('Saved Date:', appointmentDateTime, '| Now:', new Date());
+
+    // Derive midnight-normalised date for the unique index (doctorId + date + time)
+    const appointmentDate = new Date(appointmentDateTime);
     appointmentDate.setHours(0, 0, 0, 0);
     
     // Check for double booking
@@ -61,7 +69,7 @@ router.post('/book', authenticate, requireRole('PATIENT'), async (req, res) => {
     const appointment = new Appointment({
       patientId: req.user._id,
       doctorId,
-      date: appointmentDate,
+      date: appointmentDateTime,
       time,
       reason: reason || '',
       status: 'BOOKED'

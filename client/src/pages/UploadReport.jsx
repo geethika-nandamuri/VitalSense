@@ -29,6 +29,7 @@ const UploadReport = () => {
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [statusMessage, setStatusMessage] = useState('Processing your report...');
   const navigate = useNavigate();
 
   const onDrop = useCallback((acceptedFiles) => {
@@ -57,6 +58,12 @@ const UploadReport = () => {
     setError('');
     setResult(null);
     setUploadProgress(0);
+    setStatusMessage('Processing your report...');
+
+    // After 8s with no response, hint that retries may be in progress
+    const retryHintTimer = setTimeout(() => {
+      setStatusMessage('Server is busy, retrying...');
+    }, 8000);
 
     const formData = new FormData();
     formData.append('report', file);
@@ -80,6 +87,7 @@ const UploadReport = () => {
       });
 
       clearInterval(progressInterval);
+      clearTimeout(retryHintTimer);
       setUploadProgress(100);
       
       setTimeout(() => {
@@ -87,9 +95,16 @@ const UploadReport = () => {
         setFile(null);
       }, 500);
     } catch (err) {
-      setError(err.response?.data?.error || 'Upload failed');
+      const serverError = err.response?.data?.error || '';
+      const status = err.response?.status;
+      if (status === 503 || serverError.toLowerCase().includes('unavailable') || serverError.toLowerCase().includes('try again')) {
+        setError('Server is busy. Please try again later.');
+      } else {
+        setError(serverError || 'Upload failed. Please try again.');
+      }
       setUploadProgress(0);
     } finally {
+      clearTimeout(retryHintTimer);
       setUploading(false);
     }
   };
@@ -310,7 +325,7 @@ const UploadReport = () => {
                 <Box sx={{ mb: 3 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                     <Typography variant="body1" sx={{ fontWeight: 600, color: 'var(--primary-700)' }}>
-                      Processing your report...
+                      {statusMessage}
                     </Typography>
                     <CircularProgress size={20} sx={{ ml: 2, color: 'var(--primary-500)' }} />
                   </Box>
@@ -335,11 +350,12 @@ const UploadReport = () => {
             )}
 
             {/* Upload Button */}
-            {file && !uploading && (
+            {file && (
               <Grow in={true} timeout={600}>
                 <Button
                   variant="contained"
                   onClick={handleUpload}
+                  disabled={uploading}
                   size="large"
                   sx={{
                     background: 'var(--gradient-primary)',

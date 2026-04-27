@@ -7,6 +7,27 @@ const { buildTrendsFromUserId } = require('../services/trendService');
 
 const router = express.Router();
 
+// Get doctors for chatbot suggestions (public, returns only fields needed for display)
+router.get('/chat-list', async (req, res) => {
+  try {
+    const doctors = await User.find(
+      { role: 'DOCTOR', 'doctorProfile.profileCompleted': true },
+      'name doctorProfile.specialization doctorProfile.hospitalName doctorProfile.city doctorProfile.timeWindow'
+    ).lean();
+    console.log('Doctors from DB (chat-list):', doctors.map(d => d.name));
+    const data = doctors.map(d => ({
+      name: d.name,
+      specialization: d.doctorProfile?.specialization,
+      hospitalName: d.doctorProfile?.hospitalName,
+      city: d.doctorProfile?.city,
+      timeWindow: d.doctorProfile?.timeWindow,
+    }));
+    res.json({ success: true, data });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // Get all registered doctors (public endpoint for appointment booking)
 router.get('/list', async (req, res) => {
   try {

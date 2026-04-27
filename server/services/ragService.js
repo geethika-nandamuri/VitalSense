@@ -1,4 +1,4 @@
-const { getPineconeIndex } = require('../config/pinecone');
+const { getNamespacedIndex } = require('../config/pinecone');
 const { getGeminiModel } = require('../config/gemini');
 
 // For now, we'll use Gemini for text generation
@@ -6,10 +6,7 @@ const { getGeminiModel } = require('../config/gemini');
 
 const retrieveBiomarkerInfo = async (testName, query = null) => {
   try {
-    const index = getPineconeIndex();
-    const namespace = 'biomarker-definitions';
-    
-    // Create a query embedding (simplified - in production use proper embeddings)
+    const index = getNamespacedIndex('biomarker-definitions');
     const searchQuery = query || `What does ${testName} mean? What are its causes and implications?`;
     
     // For now, return a structured response using Gemini

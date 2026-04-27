@@ -1,14 +1,9 @@
 const { Pinecone } = require('@pinecone-database/pinecone');
 
 let pc = null;
+// Cached index host — resolved once at startup, avoids repeated control-plane DNS lookups
+let resolvedIndexHost = process.env.PINECONE_INDEX_HOST || null;
 
-/**
- * Initialize Pinecone client (serverless-ready).
- *
- * Pinecone serverless no longer uses "environment". The latest Node SDK only requires an apiKey
- * to connect to an existing index. We keep PINECONE_REGION in .env for clarity, but we do NOT
- * pass "environment" anywhere (to avoid: "The client configuration must have required property: environment.").
- */
 function getPineconeClient() {
   if (!pc) {
     if (!process.env.PINECONE_API_KEY) {
@@ -19,83 +14,110 @@ function getPineconeClient() {
   return pc;
 }
 
-function getPineconeIndex(indexName = null) {
-  const client = getPineconeClient();
-  const index = indexName || process.env.PINECONE_INDEX_NAME || 'vitalsense';
-  return client.index(index);
+/**
+ * Resolve the index host once via describeIndex(), then cache it.
+ * Explicit host pinning bypasses the control-plane DNS lookup that causes
+ * intermittent "Request failed to reach Pinecone" errors.
+ */
+async function resolveIndexHost(indexName) {
+  if (resolvedIndexHost) return resolvedIndexHost;
+  try {
+    const client = getPineconeClient();
+    const desc = await client.describeIndex(indexName);
+    resolvedIndexHost = desc?.host ?? null;
+    if (resolvedIndexHost) {
+      console.log(`Pinecone index host resolved: ${resolvedIndexHost}`);
+    }
+  } catch (e) {
+    console.warn('Could not resolve Pinecone index host, using name-only fallback:', e.message);
+  }
+  return resolvedIndexHost;
 }
 
 /**
- * Check if embeddings exist in Pinecone
- * @param {string} namespace - Namespace to check (default: 'biomarker-definitions')
- * @returns {Promise<boolean>} - True if embeddings exist, false otherwise
+ * Returns a Pinecone index handle with the host explicitly pinned.
+ * Falls back to name-only if host resolution fails.
+ */
+function getPineconeIndex(indexName = null) {
+  const client = getPineconeClient();
+  const name = indexName || process.env.PINECONE_INDEX_NAME || 'vitalsense';
+  // Pass host as second arg when available — SDK v6 accepts pc.index(name, host)
+  return resolvedIndexHost
+    ? client.index(name, resolvedIndexHost)
+    : client.index(name);
+}
+
+/**
+ * Returns a namespace-scoped Pinecone index handle.
+ * All queries/upserts through this handle are automatically scoped to the namespace.
+ */
+function getNamespacedIndex(namespace = 'biomarker-definitions', indexName = null) {
+  return getPineconeIndex(indexName).namespace(namespace);
+}
+
+/**
+ * Retry wrapper — retries up to `attempts` times with exponential back-off.
+ * Handles transient network errors without crashing.
+ */
+async function withRetry(fn, attempts = 3, delayMs = 500) {
+  let lastError;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await fn();
+    } catch (e) {
+      lastError = e;
+      if (i < attempts - 1) {
+        await new Promise(r => setTimeout(r, delayMs * (i + 1)));
+      }
+    }
+  }
+  throw lastError;
+}
+
+/**
+ * Check if embeddings exist in Pinecone.
+ * Resolves the index host first, then queries with retry.
  */
 const checkEmbeddingsExist = async (namespace = 'biomarker-definitions') => {
   try {
-    // Skip check if Pinecone API key is not set
-    if (!process.env.PINECONE_API_KEY) {
-      return false;
-    }
+    if (!process.env.PINECONE_API_KEY) return false;
 
-    const index = getPineconeIndex();
-    
-    // Get index statistics
-    const indexStats = await index.describeIndexStats();
+    const indexName = process.env.PINECONE_INDEX_NAME || 'vitalsense';
 
-    // Log stats for debugging startup gating (counts only)
-    try {
-      console.log('Pinecone describeIndexStats():', JSON.stringify(indexStats, null, 2));
-    } catch (_) {
-      // ignore stringify failures
-    }
+    // Ensure host is resolved before the stats call
+    await resolveIndexHost(indexName);
 
-    // Different SDK/API versions may return different field names:
-    // - total_vector_count / vector_count (older)
-    // - totalVectorCount / vectorCount (camelCase)
-    // - totalRecordCount / recordCount (newer serverless)
-    const totalVectorCount =
-      indexStats.total_vector_count ??
-      indexStats.totalVectorCount ??
-      indexStats.totalRecordCount ??
-      indexStats.total_record_count ??
+    const indexStats = await withRetry(() => getPineconeIndex(indexName).describeIndexStats());
+
+    // Namespace-first check (SDK v6 returns recordCount)
+    const nsStats = indexStats?.namespaces?.[namespace];
+    const nsCount =
+      nsStats?.recordCount ??
+      nsStats?.record_count ??
+      nsStats?.vectorCount ??
+      nsStats?.vector_count ??
       0;
 
-    // If *any* vectors exist anywhere in the index, allow startup.
-    // (Embeddings may be stored in a different namespace.)
-    if (totalVectorCount > 0) {
-      // If the specific namespace is present, log its count too (optional).
-      const nsCount =
-        indexStats?.namespaces?.[namespace]?.vector_count ??
-        indexStats?.namespaces?.[namespace]?.vectorCount ??
-        indexStats?.namespaces?.[namespace]?.recordCount ??
-        indexStats?.namespaces?.[namespace]?.record_count ??
-        null;
-
-      if (nsCount === 0) {
-        console.warn(
-          `Pinecone has vectors (total=${totalVectorCount}) but namespace "${namespace}" appears empty.`
-        );
-      }
+    if (nsCount > 0) {
+      console.log(`Pinecone namespace "${namespace}": ${nsCount} records found.`);
       return true;
     }
-    
-    // Check if the namespace exists and has vectors
-    if (indexStats.namespaces && indexStats.namespaces[namespace]) {
-      const namespaceStats = indexStats.namespaces[namespace];
-      // v6 SDK returns snake_case (vector_count) but tolerate camelCase too
-      return (
-        namespaceStats.vector_count ||
-        namespaceStats.vectorCount ||
-        namespaceStats.recordCount ||
-        namespaceStats.record_count ||
-        0
-      ) > 0;
+
+    // Fallback: any records in the index
+    const totalCount =
+      indexStats?.totalRecordCount ??
+      indexStats?.total_record_count ??
+      indexStats?.totalVectorCount ??
+      indexStats?.total_vector_count ??
+      0;
+
+    if (totalCount > 0) {
+      console.warn(`Pinecone namespace "${namespace}" not found, but index has ${totalCount} total records.`);
+      return true;
     }
-    
-    // No vectors anywhere
+
     return false;
   } catch (error) {
-    // If index doesn't exist or there's an error, assume no embeddings
     console.error('Error checking Pinecone embeddings:', error.message);
     return false;
   }
@@ -104,5 +126,7 @@ const checkEmbeddingsExist = async (namespace = 'biomarker-definitions') => {
 module.exports = {
   getPineconeClient,
   getPineconeIndex,
-  checkEmbeddingsExist
+  getNamespacedIndex,
+  checkEmbeddingsExist,
+  resolveIndexHost
 };

@@ -69,16 +69,17 @@ const PatientAppointments = () => {
 
   /**
    * Returns true if the appointment date+time is strictly in the past.
-   * apt.date — ISO string from MongoDB e.g. "2025-07-10T00:00:00.000Z"
-   * apt.time — 24-hour string e.g. "14:30" or 12-hour e.g. "2:30 PM"
-   * Reconstructs a local datetime to avoid UTC-shift bugs.
+   * Uses getUTC* to read the calendar date stored in MongoDB (always UTC midnight
+   * or a UTC-normalised datetime), then reconstructs a LOCAL Date for comparison
+   * so timezone offset never shifts the date by a day.
    */
   const isAppointmentPast = (apt) => {
     try {
       const d = new Date(apt.date);
-      const year  = d.getFullYear();
-      const month = d.getMonth();
-      const day   = d.getDate();
+      console.log('Appointment Date:', apt.date, '| Parsed:', d, '| Now:', new Date());
+      const year  = d.getUTCFullYear();
+      const month = d.getUTCMonth();
+      const day   = d.getUTCDate();
       let hours = 0, minutes = 0;
       if (apt.time) {
         const timeStr = String(apt.time).trim();
@@ -95,7 +96,8 @@ const PatientAppointments = () => {
           }
         }
       }
-      return new Date(year, month, day, hours, minutes, 0, 0) < Date.now();
+      const apptDate = new Date(year, month, day, hours, minutes, 0, 0);
+      return apptDate.getTime() <= Date.now();
     } catch {
       return false;
     }

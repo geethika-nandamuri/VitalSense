@@ -127,12 +127,39 @@ const Appointments = () => {
     try {
       const response = await api.get('/api/patient/appointments');
       const appointments = response.data.data || [];
-      
-      // Separate upcoming and past
-      const now = new Date();
-      const upcoming = appointments.filter(apt => new Date(apt.date) >= now);
-      const past = appointments.filter(apt => new Date(apt.date) < now);
-      
+
+      // Reconstruct local datetime from apt.date (ISO) + apt.time ("HH:MM" or "H:MM AM/PM")
+      // to avoid UTC-shift misclassification when date is stored as midnight UTC.
+      const isAppointmentPast = (apt) => {
+        try {
+          const d = new Date(apt.date);
+          const year = d.getUTCFullYear();
+          const month = d.getUTCMonth();
+          const day = d.getUTCDate();
+          let hours = 0, minutes = 0;
+          if (apt.time) {
+            const t = String(apt.time).trim();
+            if (/^\d{1,2}:\d{2}$/.test(t)) {
+              [hours, minutes] = t.split(':').map(Number);
+            } else {
+              const m = t.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+              if (m) {
+                hours = parseInt(m[1], 10);
+                minutes = parseInt(m[2], 10);
+                if (m[3].toUpperCase() === 'AM' && hours === 12) hours = 0;
+                if (m[3].toUpperCase() === 'PM' && hours !== 12) hours += 12;
+              }
+            }
+          }
+          return new Date(year, month, day, hours, minutes, 0, 0) < Date.now();
+        } catch {
+          return false;
+        }
+      };
+
+      const upcoming = appointments.filter(apt => !isAppointmentPast(apt));
+      const past     = appointments.filter(apt =>  isAppointmentPast(apt));
+      console.log('Appointments — upcoming:', upcoming.length, '| past:', past.length);
       setMyAppointments({ upcoming, past });
     } catch (error) {
       console.error('Error fetching appointments:', error);

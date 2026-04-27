@@ -157,7 +157,11 @@ router.post('/upload', optionalAuth, upload.single('report'), async (req, res) =
         console.error('Error deleting file:', unlinkError);
       }
       
-      throw error;
+      const statusCode = error.isServiceUnavailable ? 503 : 500;
+      const userMessage = error.isServiceUnavailable
+        ? 'AI service is currently unavailable. Please try again later.'
+        : error.message;
+      return res.status(statusCode).json({ error: userMessage });
     }
   } catch (error) {
     console.error('Report upload error:', error);

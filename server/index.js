@@ -6,7 +6,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const path = require('path');
-const { checkEmbeddingsExist } = require('./config/pinecone');
+const { checkEmbeddingsExist, resolveIndexHost } = require('./config/pinecone');
 
 dotenv.config();
 
@@ -60,6 +60,8 @@ app.use('/api/trends', require('./routes/trends'));
 app.use('/api/summary', require('./routes/summary'));
 app.use('/api/appointments', require('./routes/appointments'));
 app.use('/api/reminders', require('./routes/reminders'));
+app.use('/api/chat', require('./routes/chatRoutes'));
+app.use('/api/appointment', require('./routes/appointmentRoutes'));
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -71,16 +73,17 @@ async function startServer() {
   // Check if Pinecone is configured
   if (process.env.PINECONE_API_KEY) {
     console.log('Checking Pinecone for existing embeddings...');
+    // Resolve and cache the index host first — eliminates control-plane DNS
+    // lookups on every subsequent request, preventing transient connection errors
+    await resolveIndexHost(process.env.PINECONE_INDEX_NAME || 'vitalsense');
     const embeddingsExist = await checkEmbeddingsExist();
-    
+
     if (!embeddingsExist) {
-      console.error('\n❌ No embeddings found in Pinecone.');
-      console.error('   Run `seedEmbeddings.js` to generate and upsert embeddings into Pinecone before running the backend.');
-      console.error('   Exiting...\n');
-      process.exit(1);
+      console.warn('\n⚠️  Pinecone embeddings not available. Continuing in fallback mode.');
+      console.warn('   RAG-based features (recommendations, explanations) may be limited.\n');
+    } else {
+      console.log('✅ Embeddings found in Pinecone. Proceeding with server startup...\n');
     }
-    
-    console.log('✅ Embeddings found in Pinecone. Proceeding with server startup...\n');
   } else {
     console.log('⚠️  Pinecone API key not set. Skipping embeddings check.\n');
   }

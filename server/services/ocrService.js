@@ -1,16 +1,13 @@
-const { getGeminiVisionModel } = require('../config/gemini');
+const { callWithRetryAndFallback } = require('../config/gemini');
 const fs = require('fs').promises;
 const path = require('path');
-// Using pdf2pic instead of pdf-poppler for Linux compatibility
-const pdf2pic = require('pdf2pic');
+const { pdf } = require('pdf-to-img');
 
 /**
  * Extract biomarkers from an image file (JPEG/PNG).
  */
 const extractBiomarkersFromImage = async (imagePath, mimeType) => {
   try {
-    const model = getGeminiVisionModel();
-    
     // Read image file
     const imageData = await fs.readFile(imagePath);
     const base64Image = imageData.toString('base64');
@@ -41,7 +38,7 @@ If reference range is not visible, set it to null.
 Only extract actual test results, ignore headers, footers, and other text.
 Be precise with the test names and values.`;
 
-    const result = await model.generateContent([
+    const text = await callWithRetryAndFallback([
       prompt,
       {
         inlineData: {
@@ -50,9 +47,6 @@ Be precise with the test names and values.`;
         }
       }
     ]);
-
-    const response = await result.response;
-    const text = response.text();
     
     // Extract JSON from response
     let jsonMatch = text.match(/\[[\s\S]*\]/);
@@ -98,40 +92,36 @@ Be precise with the test names and values.`;
 };
 
 /**
- * Convert a PDF into one or more images (JPEG/PNG) before sending to the model.
+ * Convert a PDF into one or more images (PNG) before sending to the model.
+ * Uses pdf-to-img (pdfjs-dist) — no native dependencies required.
  */
 const convertPdfToImages = async (pdfPath) => {
   try {
     const fileName = path.basename(pdfPath, '.pdf');
     const outputDir = path.join(path.dirname(pdfPath), `${fileName}_pages`);
-    
-    // Create output directory if it doesn't exist
     await fs.mkdir(outputDir, { recursive: true });
-    
-    // Configure pdf2pic for Linux compatibility
-    const convert = pdf2pic.fromPath(pdfPath, {
-      density: 100,           // Output resolution
-      saveFilename: 'page',   // Output filename prefix
-      savePath: outputDir,    // Output directory
-      format: 'png',          // Output format
-      width: 2048,            // Max width
-      height: 2048            // Max height
-    });
-    
-    // Convert all pages
-    const results = await convert.bulk(-1, { responseType: 'image' });
-    
-    if (!results || results.length === 0) {
+
+    const pdfBuffer = await fs.readFile(pdfPath);
+    const doc = await pdf(pdfBuffer, { scale: 2.0 });
+
+    const imageFiles = [];
+    let pageNum = 1;
+    for await (const pageImage of doc) {
+      const outPath = path.join(outputDir, `page_${pageNum}.png`);
+      await fs.writeFile(outPath, pageImage);
+      imageFiles.push(outPath);
+      pageNum++;
+    }
+
+    if (imageFiles.length === 0) {
       throw new Error('No images generated from PDF');
     }
-    
-    // Return array of image file paths
-    const imageFiles = results.map(result => result.path);
-    
+
+    console.log(`PDF converted: ${imageFiles.length} page(s) → ${outputDir}`);
     return imageFiles;
   } catch (error) {
-    console.error('PDF conversion error:', error);
-    throw new Error('PDF conversion failed. Please convert PDF to images first.');
+    console.error('PDF conversion error:', error.message);
+    throw new Error(`PDF conversion failed: ${error.message}`);
   }
 };
 

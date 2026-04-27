@@ -16,10 +16,10 @@ import Reports from './pages/Reports';
 import PatientAppointments from './components/PatientAppointments';
 import Biomarkers from './pages/Biomarkers';
 import Trends from './pages/Trends';
-import Recommendations from './pages/Recommendations';
 import Summary from './pages/Summary';
 import Profile from './pages/Profile';
 import Navbar from './components/Navbar';
+import ChatWidget from './components/ChatWidget';
 import { useAuth } from './context/AuthContext';
 
 const theme = createTheme({
@@ -101,6 +101,7 @@ const AppContent = () => {
   return (
     <div className="App">
       <Navbar />
+      <ChatWidget />
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
@@ -181,14 +182,6 @@ const AppContent = () => {
           element={
             <RoleRoute allowedRoles={['PATIENT']}>
               <Trends />
-            </RoleRoute>
-          }
-        />
-        <Route
-          path="/recommendations"
-          element={
-            <RoleRoute allowedRoles={['PATIENT']}>
-              <Recommendations />
             </RoleRoute>
           }
         />
